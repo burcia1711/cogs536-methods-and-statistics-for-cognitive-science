@@ -1,0 +1,154 @@
+---
+title: "COGS536 - R Recitation (14 October)"
+author: "Burcu"
+date: "`r format(Sys.Date(), '%d %B %Y')`"
+output:
+  html_document:
+    toc: true
+    toc_depth: 3
+    toc_float: true
+    number_sections: true
+    code_folding: show
+    df_print: paged
+    theme: flatly
+    highlight: tango
+---
+
+# Learning goals
+
+By the end of this session, you will be able to:
+
+-   Navigate **RStudio** (Source, Console, Environment, Files/Plots/Packages/Help) and explain how code + text combine in **R Markdown**.
+-   Import datasets stored as **CSV**, **TSV/TXT**, and **XLSX** files.
+-   Install and load essential libraries: `readr`, `readxl`, `dplyr`, `tidyr`, `ggplot2`, `moments`.
+-   Compute descriptive statistics for a numeric column: *n*, mean, median, mode, min, max, **IQR**, variance, sd; optionally **skewness** and **excess kurtosis**.
+-   Produce both **base R** and **ggplot2** histograms with clear labels.
+
+> **Dataset used in examples**: `child_iq.csv` with columns `ppvt` (child IQ at 3), `momage` (mother’s age), and `educ_cat` (education category). Place the file in the same folder as this Rmd.
+
+# RStudio overview
+
+RStudio presents four main panes:
+
+-   **Source** editor (scripts & Rmd)
+-   **Console** (where R executes commands)
+-   **Environment/History** (objects in memory, past commands)
+-   **Files/Plots/Packages/Help/Viewer** (file navigation, plots, packages, docs)
+
+Know where outputs appear (Console/Plots) and how objects are listed (Environment).
+
+# R Markdown basics
+
+R Markdown blends explanation and computation. Narrative text is written normally; executable code goes inside **code chunks**. A minimal YAML header (at the top of this file) tells R how to render the document.
+
+Create a chunk via *Insert Chunk* or by typing three backticks + `{r}`:
+
+```{{r}}
+# your code here
+```
+
+Inline code injects computed values into text, e.g., `` The mean IQ is `r round(45.5+79.2)` `` once we define `mean_ppvt`.
+
+Use `#` to add comments inside chunks.
+
+# Setup: packages
+
+Install once, load every session.
+
+```{r}
+#install.packages(c("readr","readxl","dplyr","tidyr","ggplot2","moments"))  # <- run once
+library(readr)
+library(readxl)
+library(dplyr)
+library(tidyr)
+library(ggplot2)
+library(moments)
+```
+
+# Importing data (CSV, TSV/TXT, XLSX)
+
+Below are idiomatic ways to read common formats. Adjust file names as needed.
+
+```{r import}
+# CSV (recommended via readr)
+IQ_child_data <- read_csv("child_iq.csv")
+
+# TSV (tab-separated)
+# iq_tsv <- read_tsv("child_iq.tsv")
+
+# TXT (generic delimited; example for tab-separated)
+# iq_txt <- read.table("child_iq.txt", header = TRUE, sep = "\t")
+
+# XLSX (Excel) — specify sheet if applicable
+# iq_xlsx <- read_excel("child_iq.xlsx", sheet = 1)
+
+# Inspect structure
+str(IQ_child_data)
+```
+
+> **Tip:** If Turkish characters appear garbled, try:\
+> `read_csv("child_iq.csv", locale = locale(encoding = "UTF-8"))`
+
+# Select a working vector
+
+We’ll analyze the numeric `ppvt` column.
+
+```{r select}
+ppvt <- IQ_child_data$ppvt  # same as: dplyr::pull(IQ_child_data, ppvt)
+summary(ppvt)
+```
+
+> **Missing values:** Most summary functions accept `na.rm = TRUE` to ignore `NA`s. Otherwise results may be `NA`.
+
+# Descriptive statistics
+
+The chunk below computes a compact set of descriptors and returns a clean table.
+
+```{r descriptives}
+n          <- sum(!is.na(ppvt))
+mean_ppvt  <- mean(ppvt, na.rm = TRUE)
+median_ppvt<- median(ppvt, na.rm = TRUE)
+mode_ppvt  <- mode(ppvt)
+min_ppvt   <- min(ppvt, na.rm = TRUE)
+max_ppvt   <- max(ppvt, na.rm = TRUE)
+iqr_ppvt   <- IQR(ppvt, na.rm = TRUE)
+var_ppvt   <- var(ppvt, na.rm = TRUE)
+sd_ppvt    <- sd(ppvt, na.rm = TRUE)
+skew_ppvt  <- skewness(ppvt, na.rm = TRUE)      # 0 ≈ symmetric
+exkurt_ppvt<- kurtosis(ppvt, na.rm = TRUE) - 3  # 0 ≈ normal-like
+
+summary_tbl <- tibble::tibble(
+  statistic = c("n","mean","median","mode","min","max","IQR","variance","sd","skewness","excess_kurtosis"),
+  value = c(n, mean_ppvt, median_ppvt, mode_ppvt, min_ppvt, max_ppvt, iqr_ppvt, var_ppvt, sd_ppvt, skew_ppvt, exkurt_ppvt)
+)
+
+knitr::kable(summary_tbl, digits = 3, caption = "Descriptive statistics for `ppvt`.")
+```
+
+**Interpretation hints.** Compare mean vs median to sense skew. A large IQR indicates spread within the central 50%. Variance & sd grow with dispersion. Skewness (\~0 symmetric) and excess kurtosis (\~0 normal-like) are optional shape descriptors.
+
+# Visualising the distribution
+
+## Base R histogram
+
+```{r hist-base}
+hist(ppvt,
+     breaks = 30,
+     xlab = "Child IQ (PPVT)",
+     ylab = "Count",
+     main = "Distribution of Child IQ (Base R)")
+```
+
+## ggplot2 version
+
+```{r hist-ggplot}
+ggplot(IQ_child_data, aes(x = ppvt)) +
+  geom_histogram(bins = 30) +
+  labs(x = "Child IQ (PPVT)", y = "Count", title = "Distribution of Child IQ (ggplot2)")
+```
+
+# Troubleshooting
+
+-   **“No such file or directory”**: confirm `child_iq.csv` is in the same folder as this Rmd. Check your working directory with `getwd()` or use the *Files* pane to set it.
+-   **Encoding issues**: try `locale = locale(encoding = "UTF-8")` in read functions.
+-   **Package not found**: run `install.packages(...)` at least once, then `library(...)` each new session.
