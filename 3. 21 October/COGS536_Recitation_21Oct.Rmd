@@ -1,0 +1,288 @@
+---
+title: "COGS 536 — R Recitation (21 October)"
+subtitle: "R & R Markdown: Distributions, Data Inspection, Types, and Core Plots"
+author: "Burcu"
+date: "2025-10-21"
+output:
+  html_document:
+    toc: true
+    toc_float: true
+    number_sections: true
+    code_folding: show
+    df_print: paged
+    highlight: tango
+    theme: flatly
+---
+
+# Today's Goals
+
+-   Understand and use `dnorm()`, `pnorm()`, and `qnorm()`.
+-   Inspect a dataset with `str()` and `head()`.
+-   Convert between numeric and categorical (character/factor) types with `dplyr::mutate()`.
+-   Reorder factor levels for better plots and summaries.
+-   Make essential **ggplot2** charts: scatterplot, bar (counts), histogram, density, boxplot, violin.
+
+**Data Source:** <https://data.unicef.org/resources/dataset/learning-and-skills/> UNICEF “Learning and Skills” datasets. Download from ODTÜClass and save locally (adjust the path in your code).
+
+# Setup
+
+Install once if needed:
+
+``` r
+# install.packages("tidyverse")   # dplyr, ggplot2, readr, etc.
+```
+
+Load libraries for this worksheet:
+
+``` r
+library(tidyverse)
+```
+
+# Normal Distribution Helpers: `dnorm()`, `pnorm()`, `qnorm()`
+
+-   `dnorm(x, mean, sd)`: density (height of the curve) at point `x`\
+-   `pnorm(q, mean, sd)`: cumulative probability $P(X \le q)$\
+-   `qnorm(p, mean, sd)`: the quantile $q$ such that $P(X \le q) = p$
+
+Standard normal examples (mean = 0, sd = 1):
+
+``` r
+dnorm(0)          # density at x = 0
+pnorm(1.96)       # ~0.975
+qnorm(0.975)      # ~1.96
+```
+
+Non-standard normal (e.g., test scores; mean = 100, sd = 15):
+
+``` r
+dnorm(100, mean = 100, sd = 15)
+pnorm(120, mean = 100, sd = 15)   # P(X <= 120)
+qnorm(0.90, mean = 100, sd = 15)  # 90th percentile
+```
+
+**Mini‑exercise**
+
+1.  What is $P(X > 130)$ if $X \sim \mathcal{N}(100, 15^2)$?\
+    *(Hint: `1 - pnorm(130, 100, 15)`)*
+
+2.  What score is the median (50th percentile)?\
+    *(Hint: use `qnorm()`.)*
+
+3.  Compute the z‑score threshold that leaves 2.5% in the upper tail.
+
+4.  Optional: Replace numbers and rerun to see how `mean`/`sd` change the distribution.
+
+# Load and Inspect the UNICEF Dataset
+
+Adjust the path if your file has a different name/location:
+
+``` r
+csv_path <- "data/unicef_learning_skills.csv"
+
+# Read CSV (suppress column type printing)
+unicef <- readr::read_csv(csv_path, show_col_types = FALSE)
+
+# Peek at structure and first rows
+str(unicef)
+head(unicef, 10)
+```
+
+If you get an error: confirm the file path and that your CSV delimiter is a comma. If it’s TSV, use `readr::read_tsv()`.
+
+**Mini‑exercise**
+
+-   How many rows and columns does your dataset have? (`dim(unicef)`)
+-   Identify two numeric columns and one categorical column from `str()`.
+-   Use `summary()` on a numeric column to get min/median/mean/quantiles.
+
+# Changing Data Types with `mutate()`
+
+Convert numeric → character (or factor), and character → numeric.
+
+``` r
+# 1) Convert numeric (Subject label) to character/factor
+# Suppose 'Subject' is numeric but represents a categorical label
+
+unicef <- unicef %>%
+  mutate(
+    Subject_chr = as.character(Subject),
+    Subject_fct = as.factor(Subject)
+  )
+
+# 2) Convert character (Grade) to factor
+# 'Grade' is a character column, but it's clearly a set of categories
+
+unicef <- unicef %>%
+  mutate(
+    Grade_fct = as.factor(Grade)
+  )
+```
+
+> **Note:** `as.numeric()` on a non‑numeric string (e.g., `"N/A"`) becomes `NA`.\
+> For messy strings like `"12 (approx.)"`, try `readr::parse_number()`.
+
+**Mini‑exercise**
+
+-   Pick one column that should be categorical and convert it to a factor.
+-   Pick one column that should be numeric and convert it to numeric.
+-   Count how many `NA`s appear after conversion (`sum(is.na(col))`). Why might they appear?
+
+# Reordering Factor Levels
+
+Reorder factors to control plot and table ordering. For example, put `"Age 7 to 14"` (broader/older group) before `"Grade 2/3"`:
+
+``` r
+unicef <- unicef %>%
+  mutate(
+    Grade_fct_reordered = factor(Grade_fct,
+                                 levels = c("Age 7 to 14", "Grade 2/3"))
+  )
+
+# Inspect the changes
+cat("Original Grade levels/counts:\n")
+print(table(unicef$Grade_fct, useNA = "ifany"))
+
+cat("\nReordered Grade levels/counts:\n")
+print(table(unicef$Grade_fct_reordered, useNA = "ifany"))
+
+# Confirm data type and level order
+str(unicef$Grade_fct_reordered)
+```
+
+You can also order a factor by a statistic using **forcats**:
+
+``` r
+# Example: order Category by mean of `Girls score`
+# install.packages("forcats") # if needed
+library(forcats)
+
+unicef <- unicef %>%
+  mutate(
+    Category_by_girls =
+      fct_reorder(Category, `Girls score`, .fun = mean, .na_rm = TRUE)
+  )
+```
+
+**Mini‑exercise**
+
+-   Choose a factor column and set a meaningful **manual** order of levels.\
+-   Choose a numeric indicator and reorder a categorical column by its **mean** using factor tools.
+
+# Core `ggplot2` Charts
+
+We’ll assume you have numeric indicator columns like `Girls score` and `Boys score` and a categorical column like `Category` or `Grade`. **Remember** to use backticks (`` `...` ``) for column names with spaces.
+
+## Scatterplot
+
+``` r
+# Relationship between scores for girls and boys
+unicef %>%
+  ggplot(aes(x = `Girls score`, y = `Boys score`)) +
+  geom_point(alpha = 0.7) +
+  labs(
+    title = "Relationship Between Girls' and Boys' Test Scores",
+    x = "Girls' Score (%)",
+    y = "Boys' Score (%)"
+  )
+```
+
+## Bar Chart for Categorical Counts
+
+``` r
+# Count of records for each Category level
+unicef %>%
+  ggplot(aes(x = Category)) +
+  geom_bar() +
+  labs(
+    title = "Count of Records by Subject Category",
+    x = NULL,
+    y = "Count of Observations"
+  ) +
+  theme(axis.text.x = element_text(angle = 30, hjust = 1))
+```
+
+## Histogram
+
+``` r
+# Distribution of Girls' scores
+unicef %>%
+  ggplot(aes(x = `Girls score`)) +
+  geom_histogram(bins = 30) +
+  labs(
+    title = "Distribution of Girls' Test Scores",
+    x = "Girls' Score (%)",
+    y = "Frequency"
+  )
+```
+
+## Density Plot
+
+``` r
+# Overall density
+unicef %>%
+  ggplot(aes(x = `Boys score`)) +
+  geom_density() +
+  labs(
+    title = "Density Plot of Boys’ Test Scores",
+    x = "Boys' Score (%)",
+    y = "Density"
+  )
+
+# Split density by Category
+unicef %>%
+  ggplot(aes(x = `Boys score`, color = Category)) +
+  geom_density(alpha = 0.5) +
+  labs(
+    title = "Density of Boys' Scores by Subject Category",
+    x = "Boys' Score (%)",
+    y = "Density",
+    color = "Subject"
+  )
+```
+
+## Boxplot
+
+``` r
+# Girls' score by Grade
+unicef %>%
+  ggplot(aes(x = Grade, y = `Girls score`)) +
+  geom_boxplot() +
+  labs(
+    title = "Girls' Score Distribution by Grade Level",
+    x = NULL,
+    y = "Girls' Score (%)"
+  ) +
+  theme(axis.text.x = element_text(angle = 30, hjust = 1))
+```
+
+## Violin Plot
+
+``` r
+# Boys' score by Grade
+unicef %>%
+  ggplot(aes(x = Grade, y = `Boys score`)) +
+  geom_violin(trim = FALSE) +
+  labs(
+    title = "Boys' Score Distribution by Grade Level (Violin Plot)",
+    x = NULL,
+    y = "Boys' Score (%)"
+  ) +
+  theme(axis.text.x = element_text(angle = 30, hjust = 1))
+```
+
+**Mini‑exercise (plots)**
+
+-   Make a scatterplot of two numeric indicators. Add a smooth trend with `geom_smooth(se = FALSE)`.
+-   Create a bar chart of a categorical variable; then reorder its levels by **descending count**.
+-   Compare the histogram and density of the same numeric variable. Which communicates the shape better here?
+-   Plot **boxplot vs. violin** for the same grouping. What extra info does the violin show?
+
+# Appendix
+
+-   Distribution helpers: `dnorm(x, m, s)`, `pnorm(q, m, s)`, `qnorm(p, m, s)`\
+-   Inspect data: `str(df)`, `head(df)`, `summary(df)`\
+-   Type conversions: `mutate(new = as.numeric(old))`, `as.character()`, `as.factor()`\
+-   Factor ordering: `factor(x, levels = ...)`, `forcats::fct_reorder(x, y)`\
+-   Core plots: `geom_point()`, `geom_bar()`, `geom_histogram()`, `geom_density()`, `geom_boxplot()`, `geom_violin()`
+
+**Next time (preview).** `filter()`, finding `NA`s, grouped summaries (`group_by()` + `summarise()`), and creating new columns (`mutate()`).
