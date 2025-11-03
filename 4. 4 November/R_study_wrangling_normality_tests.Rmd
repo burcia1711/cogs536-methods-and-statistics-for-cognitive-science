@@ -1,0 +1,401 @@
+---
+title: "R Study File: Data Wrangling & One-Sample Tests"
+author: "Prepared for the R session"
+date: "`r format(Sys.Date())`"
+output:
+  html_document:
+    toc: true
+    toc_depth: 2
+    toc_float: true
+    df_print: paged
+  pdf_document: default
+---
+
+> This workbook is designed for short, hands-on exercises. Sections include data filtering, grouping, tidying, summarising; handling missing data (NA); and one-sample inference (z-test, t-test), sample size calculation, QQ plots, and the Shapiro–Wilk normality test. All examples use built-in datasets so you can run them immediately.
+
+## Setup
+
+``` r
+# Install (if needed) and load packages
+pkgs <- c("tidyverse", "pwr")
+to_install <- setdiff(pkgs, rownames(installed.packages()))
+if (length(to_install)) install.packages(to_install, repos = "https://cloud.r-project.org")
+
+library(tidyverse)
+library(pwr)
+
+set.seed(42)
+```
+
+## 0) Toy data (for practice)
+
+We will use `mtcars` and `iris`. To illustrate missing-data operations, we will also create a small copy with some injected `NA`s.
+
+``` r
+cars <- as_tibble(mtcars, rownames = "model")
+iris_tbl <- as_tibble(iris)
+
+# Inject NAs into a copy of mtcars for missing-data practice
+cars_na <- cars %>%
+  mutate(
+    mpg = if_else(row_number() %% 7 == 0, NA_real_, mpg),
+    hp  = if_else(row_number() %% 11 == 0, NA_real_, hp),
+    am  = factor(am, labels = c("Automatic","Manual")),  # nicer labels
+    cyl = factor(cyl)
+  )
+```
+
+------------------------------------------------------------------------
+
+## 1) PRIORITY: Filtering, grouping, transforming, and summarising
+
+### 1.1 Filter rows
+
+``` r
+# Cars with mpg > 25 and weight (wt) < 2.5
+cars %>% filter(mpg > 25, wt < 2.5)
+```
+
+**Try it.**\
+- Exercise 1: Filter `cars` to keep only manual transmission (`am == 1`) and 4-cylinder cars (`cyl == 4`). Show `model`, `mpg`, `hp` sorted by descending `mpg`.
+
+<details>
+
+<summary>Solution</summary>
+
+``` r
+cars %>%
+  filter(am == 1, cyl == 4) %>%
+  arrange(desc(mpg)) %>%
+  select(model, mpg, hp)
+```
+
+</details>
+
+### 1.2 Select and rename columns
+
+``` r
+cars %>%
+  select(model, mpg, hp, wt) %>%
+  rename(weight_1000lb = wt, horsepower = hp)
+```
+
+**Try it.**\
+- Exercise 2: From `iris_tbl`, keep `Species`, `Sepal.Length`, `Petal.Length` and rename them to `species`, `sepal_len`, `petal_len`.
+
+<details>
+
+<summary>Solution</summary>
+
+``` r
+iris_tbl %>%
+  select(Species, Sepal.Length, Petal.Length) %>%
+  rename(species = Species, sepal_len = Sepal.Length, petal_len = Petal.Length)
+```
+
+</details>
+
+### 1.3 Create/transform variables with `mutate()`
+
+``` r
+cars %>%
+  transmute(model, mpg, hp, power_to_weight = hp / wt)
+```
+
+**Try it.**\
+- Exercise 3: On `iris_tbl`, create `sepal_ratio = Sepal.Length / Sepal.Width` and keep `Species`, `sepal_ratio`. Which species has the highest average `sepal_ratio`?
+
+<details>
+
+<summary>Solution</summary>
+
+``` r
+iris_tbl %>%
+  mutate(sepal_ratio = Sepal.Length / Sepal.Width) %>%
+  group_by(Species) %>%
+  summarise(mean_ratio = mean(sepal_ratio), .groups = "drop") %>%
+  arrange(desc(mean_ratio))
+```
+
+</details>
+
+### 1.4 Grouping & summarising (descriptives)
+
+``` r
+cars %>%
+  mutate(cyl = factor(cyl)) %>%
+  group_by(cyl) %>%
+  summarise(
+    n = n(),
+    mean_mpg = mean(mpg),
+    sd_mpg = sd(mpg),
+    median_mpg = median(mpg),
+    .groups = "drop"
+  )
+```
+
+**Try it.**\
+- Exercise 4: For `iris_tbl`, compute per-species `n`, mean, sd, and median of `Sepal.Length`. Sort by `mean` descending.
+
+<details>
+
+<summary>Solution</summary>
+
+``` r
+iris_tbl %>%
+  group_by(Species) %>%
+  summarise(
+    n = n(),
+    mean_sepal = mean(Sepal.Length),
+    sd_sepal = sd(Sepal.Length),
+    median_sepal = median(Sepal.Length),
+    .groups = "drop"
+  ) %>%
+  arrange(desc(mean_sepal))
+```
+
+</details>
+
+### 1.5 Multiple group variables
+
+``` r
+cars %>%
+  mutate(cyl = factor(cyl), am = factor(am)) %>%
+  group_by(cyl, am) %>%
+  summarise(
+    n = n(),
+    mean_hp = mean(hp),
+    mean_mpg = mean(mpg),
+    .groups = "drop"
+  )
+```
+
+**Try it.**\
+- Exercise 5: For `iris_tbl`, compute mean `Petal.Width` by `Species` and `cut_number(Sepal.Length, 3)` bins.
+
+<details>
+
+<summary>Solution</summary>
+
+``` r
+iris_tbl %>%
+  mutate(sepal_len_bin = cut_number(Sepal.Length, 3)) %>%
+  group_by(Species, sepal_len_bin) %>%
+  summarise(mean_petal_w = mean(Petal.Width), n = n(), .groups = "drop")
+```
+
+</details>
+
+**Reference:** Data transformation with dplyr (R for Data Science): <https://r4ds.had.co.nz/transform.html>
+
+------------------------------------------------------------------------
+
+## 2) PRIORITY: Counting and filtering `NA` values
+
+### 2.1 Count NA per column
+
+``` r
+cars_na %>% summarise(across(everything(), ~ sum(is.na(.))))
+```
+
+### 2.2 Count complete vs missing rows
+
+``` r
+cars_na %>%
+  summarise(
+    n_rows = n(),
+    complete_rows = sum(complete.cases(.)),
+    rows_with_any_na = n_rows - complete_rows
+  )
+```
+
+### 2.3 Filter out rows with any NA (drop NAs)
+
+``` r
+cars_no_na <- cars_na %>% drop_na()
+nrow(cars_na); nrow(cars_no_na)
+```
+
+### 2.4 Filter rows requiring certain columns to be non-missing
+
+``` r
+cars_req <- cars_na %>% drop_na(mpg, hp)  # only drop rows where mpg OR hp are NA
+```
+
+**Try it.**\
+- Exercise 6: In `cars_na`, compute the mean `mpg` after dropping rows where `mpg` is `NA`. Compare with the mean computed on `cars` (no NAs).
+
+<details>
+
+<summary>Solution</summary>
+
+``` r
+mean(cars_na$mpg, na.rm = TRUE)
+cars_na %>% drop_na(mpg) %>% summarise(mean_mpg = mean(mpg))
+mean(cars$mpg)
+```
+
+</details>
+
+**Reference:** Removing NA with dplyr: <https://www.statology.org/dplyr-remove-na/>
+
+------------------------------------------------------------------------
+
+## 3) One-sample tests, sample size, QQ plot, and normality
+
+> In this section we will: (a) run a one-sample *z*-test (requires known population SD), (b) run a one-sample *t*-test, (c) compute sample size for a one-sample *t*-test using `pwr`, (d) draw QQ plots, and (e) test normality via Shapiro–Wilk.
+
+### 3.1 One-sample *z*-test (known population sigma)
+
+Assume (for illustration) that miles-per-gallon in the population has a known standard deviation of 6. We test whether the mean `mpg` of our sample (`cars$mpg`) equals 20.
+
+Test statistic: $z = \frac{\bar{x} - \mu_0}{\sigma / \sqrt{n}}$ and two-sided *p*-value from the standard normal.
+
+``` r
+x <- cars$mpg
+mu0 <- 20
+sigma_pop <- 6  # assumed known
+n <- length(x)
+
+z_stat <- (mean(x) - mu0) / (sigma_pop / sqrt(n))
+p_val <- 2 * (1 - pnorm(abs(z_stat)))  # two-sided
+
+c(z_stat = z_stat, p_value = p_val)
+```
+
+**Try it.**\
+- Exercise 7: Repeat the same test for `hp` with hypothesised mean `mu0 = 150` and population SD `sigma_pop = 40`.
+
+<details>
+
+<summary>Solution</summary>
+
+``` r
+x <- cars$hp; mu0 <- 150; sigma_pop <- 40; n <- length(x)
+z_stat <- (mean(x) - mu0) / (sigma_pop / sqrt(n))
+p_val <- 2 * (1 - pnorm(abs(z_stat)))
+c(z_stat = z_stat, p_value = p_val)
+```
+
+</details>
+
+**Reference:** One-sample z-test in R: <https://www.statology.org/z-test-in-r/>
+
+### 3.2 One-sample *t*-test
+
+Now we drop the “known sigma” assumption and test whether mean `mpg` equals 20 using a *t*-test.
+
+``` r
+t.test(cars$mpg, mu = 20, alternative = "two.sided")
+```
+
+**Try it.**\
+- Exercise 8: Test whether the mean `Sepal.Length` equals `5.8` in `iris_tbl` (two-sided). Then repeat with an alternative `"greater"`.
+
+<details>
+
+<summary>Solution</summary>
+
+``` r
+t.test(iris_tbl$Sepal.Length, mu = 5.8, alternative = "two.sided")
+t.test(iris_tbl$Sepal.Length, mu = 5.8, alternative = "greater")
+```
+
+</details>
+
+**Reference:** One-sample t-test: <https://www.geeksforgeeks.org/r-language/one-sample-t-test-in-r/>
+
+### 3.3 Sample size calculation (one-sample *t*-test)
+
+We want to detect a mean difference of `d = 2` units, with assumed SD `sd = 6`, at power `0.8` and alpha `0.05`. The standardised effect size is $d_{Cohen} = \frac{2}{6} = 0.333\overline{3}$.
+
+``` r
+effect_size <- 2/6
+pwr.t.test(d = effect_size, power = 0.8, sig.level = 0.05, type = "one.sample", alternative = "two.sided")
+```
+
+**Try it.**\
+- Exercise 9: What sample size do you need to detect a +0.2 difference from `mu0` if the SD is 1.0 with power 0.9 at alpha 0.05?
+
+<details>
+
+<summary>Solution</summary>
+
+``` r
+pwr.t.test(d = 0.2/1.0, power = 0.9, sig.level = 0.05, type = "one.sample", alternative = "two.sided")
+```
+
+</details>
+
+**Reference:** Sample size with `pwr`: <https://bookdown.org/pdr_higgins/rmrwr/sample-size-calculations-with-pwr.html>
+
+### 3.4 QQ plots (visual normality check)
+
+``` r
+par(mfrow = c(1, 2))
+qqnorm(cars$mpg, main = "QQ plot of mpg")
+qqline(cars$mpg)
+qqnorm(iris_tbl$Sepal.Length, main = "QQ plot of Sepal.Length")
+qqline(iris_tbl$Sepal.Length)
+par(mfrow = c(1, 1))
+```
+
+**Try it.**\
+- Exercise 10: Create a QQ plot for `cars$hp` and add a reference line.
+
+<details>
+
+<summary>Solution</summary>
+
+``` r
+qqnorm(cars$hp, main = "QQ plot of hp")
+qqline(cars$hp)
+```
+
+</details>
+
+**Reference:** QQ plots in base R: <https://www.sthda.com/english/wiki/qq-plots-quantile-quantile-plots-r-base-graphs>
+
+### 3.5 Shapiro–Wilk normality test
+
+``` r
+shapiro.test(cars$mpg)
+shapiro.test(iris_tbl$Sepal.Length)
+```
+
+> Note: Shapiro–Wilk is sensitive in large samples; combine with visual checks (QQ plots) and domain reasoning.
+
+**Try it.**\
+- Exercise 11: Run `shapiro.test` for `cars$hp`. Interpret with alpha = 0.05.
+
+<details>
+
+<summary>Guidance</summary>
+
+-   If `p-value < 0.05`, reject normality (evidence against normality).
+-   If `p-value >= 0.05`, do not reject normality (no strong evidence against normality).
+
+</details>
+
+**Reference:** Shapiro–Wilk test in R: <https://www.geeksforgeeks.org/r-language/shapiro-wilk-test-in-r-programming/>
+
+------------------------------------------------------------------------
+
+## Appendix: Tips & Cheats
+
+-   `summarise(across(where(is.numeric), mean, na.rm = TRUE))` to compute means of all numeric columns.
+-   `count(var, sort = TRUE)` quickly counts frequencies.
+-   `drop_na(col1, col2)` to drop rows with NA in specified columns only.
+-   Prefer factors for grouping variables: `mutate(group = factor(group))`.
+-   z-test requires **known** population SD; otherwise use t-test.
+-   Always pair numerical tests with plots and context.
+
+## Sources
+
+-   Data transformation with dplyr (R4DS): <https://r4ds.had.co.nz/transform.html>\
+-   Removing NAs with dplyr: <https://www.statology.org/dplyr-remove-na/>\
+-   One-sample z-test in R: <https://www.statology.org/z-test-in-r/>\
+-   One-sample t-test in R: <https://www.geeksforgeeks.org/r-language/one-sample-t-test-in-r/>\
+-   Sample size with pwr: <https://bookdown.org/pdr_higgins/rmrwr/sample-size-calculations-with-pwr.html>\
+-   QQ plots in base R: <https://www.sthda.com/english/wiki/qq-plots-quantile-quantile-plots-r-base-graphs>\
+-   Shapiro–Wilk in R: <https://www.geeksforgeeks.org/r-language/shapiro-wilk-test-in-r-programming/>
