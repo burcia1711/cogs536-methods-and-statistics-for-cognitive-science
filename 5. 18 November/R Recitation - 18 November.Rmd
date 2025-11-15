@@ -1,0 +1,553 @@
+# Song Sparrow Cognition Data Analysis Lab
+
+This lab session will guide you through essential data analysis techniques in R, including descriptive statistics, visualization, data manipulation, and introductory inferential statistics. We will be using a dataset on **Song Sparrow cognition**.
+
+## 1. Setup and Data Loading
+
+First, we install and load the necessary R packages. The `tidyverse` is a collection of packages, including `dplyr` for data manipulation and `ggplot2` for plotting. We will also use `pwr` for power analysis and a custom function for the mode, as there is no built-in function in base R.
+
+```{r}
+#install.packages("BSDA")
+```
+
+```{r}
+# Install packages if you haven't already (uncomment the line below to run)
+# install.packages(c("tidyverse", "pwr", "BSDA"))
+
+# Load the required libraries
+library(tidyverse)
+library(readxl)
+library(pwr)
+library(BSDA) # For Z-test
+
+# Define a function to calculate the mode
+calculate_mode <- function(x) {
+  # Remove NA values before calculating the mode
+  x_clean <- na.omit(x)
+  if (length(x_clean) == 0) return(NA)
+  
+  # Calculate the frequency of each value
+  unique_values <- unique(x_clean)
+  counts <- table(x_clean)
+  
+  # Find the value(s) with the highest frequency
+  mode_value <- names(counts)[counts == max(counts)]
+  
+  # If there are multiple modes, return all of them
+  return(as.numeric(mode_value))
+}
+
+# Load the dataset
+df <- read_excel("song+sparrow+cognition+data.xlsx", sheet = "Sheet2")
+```
+
+### 1.1 Data Inspection: `str()` and `head()`
+
+It's crucial to inspect the data structure and initial rows to understand the variables and check for any immediate issues.
+
+#### `str()`
+
+The `str()` (structure) function shows us the data type of each column and a sample of the data. This helps confirm if variables are being read as the correct type (e.g., numeric, character, or factor).
+
+```{r}
+# Inspect the structure of the data
+str(df)
+```
+
+#### `head()`
+
+The `head()` function displays the first six rows, which is a quick way to visually confirm the data has loaded correctly and to see the format of the entries.
+
+```{r}
+# View the first few rows of the data
+head(df)
+```
+
+------------------------------------------------------------------------
+
+## 2. Descriptive Statistics
+
+Descriptive statistics summarize the main features of a dataset. We will focus on the **Neophobia** score (`neophobia`) which measures the latency (in seconds) for a bird to approach a novel object.
+
+### 2.1 Selecting a Specific Column (Base R `$`)
+
+In base R, you can select a specific variable (column) from a data frame using the dollar sign operator (`$`).
+
+```{r}
+# Select the 'neophobia' column
+neophobia_scores <- df$neophobia
+head(neophobia_scores)
+```
+
+### 2.2 Calculating Key Descriptives
+
+We will calculate the requested descriptive statistics for the `neophobia` variable.
+
+| Statistic | R Function | Explanation |
+|:-----------------------|:-----------------------|:-----------------------|
+| $N$ (Count) | `sum(!is.na())` or `length(na.omit())` | The number of non-missing observations. |
+| **Mean** | `mean()` | The arithmetic average. |
+| **Median** | `median()` | The middle value when the data is sorted. |
+| **Mode** | `calculate_mode()` | The most frequently occurring value. |
+| **Range (Min/Max)** | `min()`, `max()`, `range()` | The smallest and largest values. |
+| **Interquartile Range** | `IQR()` | The difference between the 75th and 25th percentiles ($Q3 - Q1$). |
+| **Variance** | `var()` | The average of the squared differences from the Mean. |
+| **Standard Deviation** | `sd()` | The square root of the variance, providing a measure of data spread in the original units. |
+
+```{r}
+# Descriptive Statistics for 'neophobia'
+
+# N (Count)
+n_obs <- length(na.omit(neophobia_scores))
+cat("N (Count):", n_obs, "\n")
+
+# Mean
+mean_val <- mean(neophobia_scores, na.rm = TRUE)
+cat("Mean:", round(mean_val, 2), "\n")
+
+# Median
+median_val <- median(neophobia_scores, na.rm = TRUE)
+cat("Median:", median_val, "\n")
+
+# Mode (using the custom function)
+mode_val <- calculate_mode(neophobia_scores)
+cat("Mode(s):", mode_val, "\n")
+
+# Min Value
+min_val <- min(neophobia_scores, na.rm = TRUE)
+cat("Minimum Value:", min_val, "\n")
+
+# Maximum Value
+max_val <- max(neophobia_scores, na.rm = TRUE)
+cat("Maximum Value:", max_val, "\n")
+
+# Range
+range_val <- max_val - min_val
+cat("Range (Max - Min):", round(range_val, 2), "\n")
+
+# Interquartile Range (IQR)
+iqr_val <- IQR(neophobia_scores, na.rm = TRUE)
+cat("Interquartile Range (IQR):", round(iqr_val, 2), "\n")
+
+# Variance
+var_val <- var(neophobia_scores, na.rm = TRUE)
+cat("Variance:", round(var_val, 2), "\n")
+
+# Standard Deviation (SD)
+sd_val <- sd(neophobia_scores, na.rm = TRUE)
+cat("Standard Deviation (SD):", round(sd_val, 2), "\n")
+```
+
+------------------------------------------------------------------------
+
+## 3. Base R Histogram
+
+Histograms visualize the distribution of a numeric variable by dividing the data into bins and showing the frequency of observations in each bin.
+
+### 3.1 Basic Histogram
+
+```{r}
+# Basic Histogram for 'neophobia'
+hist(df$neophobia)
+```
+
+### 3.2 Modifying Titles and Bin Size
+
+We can customize the histogram by changing the main title (`main`), axis labels (`xlab`, `ylab`), and the number or size of the bins (`breaks`).
+
+```{r}
+# Histogram with custom titles and bin size
+hist(df$neophobia,
+     main = "Distribution of Neophobia Scores in Song Sparrows", # Change Main Title
+     xlab = "Neophobia Score (Latency in Seconds)",            # Change X-axis Label
+     ylab = "Frequency of Birds (Count)",                      # Change Y-axis Label
+     col = "lightblue",                                        # Change bar color
+     border = "black",                                         # Add borders
+     breaks = 10) # Set the number of bins to 10
+```
+
+------------------------------------------------------------------------
+
+## 4. Probability Distributions (`dnorm`, `pnorm`, `qnorm`)
+
+These functions are fundamental for working with the **Normal Distribution**. We'll use a hypothetical scenario: a population mean ($\mu$) of $100$ and a standard deviation ($\sigma$) of $15$.
+
+### 4.1 `dnorm()`: Density
+
+`dnorm(x, mean, sd)` calculates the **Probability Density** at a specific value $x$. This is the height of the curve at that point.
+
+```{r}
+# Calculate the density of a score of 115 (Z = 1)
+dnorm(x = 115, mean = 100, sd = 15)
+```
+
+### 4.2 `pnorm()`: Cumulative Probability
+
+`pnorm(q, mean, sd)` calculates the **Cumulative Probability** for a value $q$, which is the area under the curve to the left of $q$ (i.e., $P(X \le q)$).
+
+```{r}
+# Calculate the probability of a score being 115 or less
+pnorm(q = 115, mean = 100, sd = 15)
+```
+
+### 4.3 `qnorm()`: Quantile (Inverse Cumulative Probability)
+
+`qnorm(p, mean, sd)` calculates the **Quantile** (the $x$ value) that corresponds to a given cumulative probability $p$.
+
+```{r}
+# Calculate the score that corresponds to the 95th percentile (0.95 area to the left)
+qnorm(p = 0.95, mean = 100, sd = 15)
+```
+
+------------------------------------------------------------------------
+
+## 5. Data Type Conversion and Factor Level Reordering
+
+Data types often need to be modified for correct analysis or representation. We use the `dplyr` function `mutate()` to create or change columns.
+
+### 5.1 Converting to Numeric
+
+We convert the `bird` variable (which is currently a `character` or `object` type) to a numeric type. *Note: This operation will result in `NA` values because the bird IDs contain letters (e.g., "sg701"), which is expected when converting non-numeric text to numeric.*
+
+Examples that cause NA error :
+
+-   `"sg701"`
+
+-   `"bird_A"`
+
+-   `"x12"`
+
+-   `"blue"`
+
+-   `"sg726"`
+
+All of these contain **letters**, so `as.numeric()` cannot convert them to numbers.
+
+Convert factor/character labels into numeric IDs:
+This produces:
+
+| bird  | bird_id_numeric |
+|-------|-----------------|
+| sg701 | 1               |
+| sg704 | 2               |
+| sg707 | 3               |
+
+No warning, because factor → numeric conversion is safe.
+
+```{r}
+df_converted <- df %>%
+  mutate(bird_id_numeric = as.numeric(factor(bird)))
+
+str(df_converted$bird_id_numeric)
+head(df_converted$bird_id_numeric)
+```
+
+### 5.2 Converting from Character
+
+Converting a variable like **sex** ("M"/"F") directly to numeric will typically result in missing values (\`NA\`) since the characters aren't numbers. However, by converting the variable to a **factor first**, R converts the underlying integer representation of the factor levels (e.g., \$1\$ for the first level, \$2\$ for the second) into a numeric column. This is an important concept in R data manipulation.
+
+```{r}
+
+# Convert 'sex' (character) -> Factor -> Numeric
+# This reveals the underlying numerical representation of factor levels (e.g., 1, 2)
+df_converted <- df %>%
+  mutate(sex_numeric_level = as.numeric(factor(sex)))
+
+# Inspect the structure (should now be 'dbl' or 'int')
+str(df_converted$sex_numeric_level)
+
+# View the first few values to see the level conversion
+head(df_converted$sex_numeric_level)
+```
+
+### 5.3 Factor Level Reordering
+
+**Factors** are used to store categorical data. We can change the order of levels using the `levels` argument in the `factor()` function. This is important for controlling the order in graphs (like bar plots) and statistical models.
+
+Let's convert `sex` to a factor and then change the reference level from "M" to "F".
+
+```{r}
+# 1. Convert 'sex' to a factor
+df <- df %>%
+  mutate(sex_factor = factor(sex))
+
+# See the default order of levels
+levels(df$sex_factor)
+
+# 2. Reorder the levels: place 'F' (Female) first, then 'M' (Male)
+df <- df %>%
+  mutate(sex_factor_reordered = factor(sex, levels = c("F", "M")))
+
+# See the new order of levels
+levels(df$sex_factor_reordered)
+```
+
+------------------------------------------------------------------------
+
+## 6. `ggplot2` Visualizations
+
+`ggplot2` is a powerful package for creating high-quality, customizable graphics. All plots follow the grammar of graphics: data $\rightarrow$ aesthetics (mapping variables to axes) $\rightarrow$ geometry (the plot type).
+
+We will use the original `sex` column (M/F) and the `neophobia` score.
+
+```{r}
+# Ensure ggplot2 is loaded (it is part of tidyverse)
+library(ggplot2)
+```
+
+### 6.1 Scatterplot
+
+A scatterplot shows the relationship between two numeric variables. Let's plot `neophobia` against **Novel Foraging Time** (`novforag`).
+
+```{r}
+ggplot(df, aes(x = neophobia, y = novforag)) +
+  geom_point(aes(color = sex)) + # Map 'sex' to color
+  labs(
+    title = "Neophobia vs. Novel Foraging Time",
+    x = "Neophobia Score (s)",
+    y = "Novel Foraging Time (s)",
+    color = "Sex"
+  ) +
+  theme_minimal()
+```
+
+### 6.2 Bar Plot (`geom_bar` for Categorical Counts)
+
+Used to visualize the count (frequency) of each category in a single categorical variable (`sex`).
+
+```{r}
+ggplot(df, aes(x = sex)) +
+  geom_bar(fill = "darkorange") +
+  labs(
+    title = "Count of Birds by Sex",
+    x = "Sex",
+    y = "Count (n)"
+  ) +
+  theme_minimal()
+```
+
+### 6.3 Histogram (`geom_histogram`)
+
+The `ggplot2` equivalent of the base R histogram.
+
+```{r}
+ggplot(df, aes(x = neophobia)) +
+  geom_histogram(bins = 15, fill = "darkblue", color = "white") +
+  labs(
+    title = "Histogram of Neophobia Scores (ggplot2)",
+    x = "Neophobia Score (s)",
+    y = "Frequency"
+  ) +
+  theme_minimal()
+```
+
+### 6.4 Density Plot (`geom_density`)
+
+A smoothed version of the histogram, which is excellent for visualizing the shape of the distribution.
+
+```{r}
+ggplot(df, aes(x = neophobia)) +
+  geom_density(fill = "red", alpha = 0.5) + # alpha for transparency
+  labs(
+    title = "Density Plot of Neophobia Scores",
+    x = "Neophobia Score (s)"
+  ) +
+  theme_minimal()
+```
+
+### 6.5 Boxplot (`geom_boxplot`)
+
+Displays the distribution of a numeric variable (e.g., `neophobia`) across different categories (e.g., `sex`). It shows the median, quartiles, and outliers.
+
+```{r}
+ggplot(df, aes(x = sex, y = neophobia)) +
+  geom_boxplot(fill = "green", alpha = 0.7) +
+  labs(
+    title = "Boxplot of Neophobia Scores by Sex",
+    x = "Sex",
+    y = "Neophobia Score (s)"
+  ) +
+  theme_minimal()
+```
+
+### 6.6 Violin Plot (`geom_violin`)
+
+A violin plot is similar to a boxplot but also shows the kernel density of the data at different values (providing a better view of the distribution shape).
+
+```{r}
+ggplot(df, aes(x = sex, y = neophobia)) +
+  geom_violin(aes(fill = sex), alpha = 0.5) +
+  geom_boxplot(width = 0.1) + # Add a small boxplot inside
+  labs(
+    title = "Violin Plot of Neophobia Scores by Sex",
+    x = "Sex",
+    y = "Neophobia Score (s)"
+  ) +
+  theme_minimal()
+```
+
+------------------------------------------------------------------------
+
+## 7. Data Filtering, Grouping, and Summarisation (`dplyr`)
+
+The `dplyr` package is the core tool for data manipulation in the `tidyverse`.
+
+### 7.1 Data Filtering (`filter()`)
+
+The `filter()` function selects a subset of rows based on specified logical conditions.
+
+```{r}
+# Filter the data to include only Male birds ('M')
+df_males <- df %>%
+  filter(sex == "M")
+
+# Check the new dataset size and head
+cat("Number of Male birds:", nrow(df_males), "\n")
+head(df_males)
+```
+
+### 7.2 Data Grouping and Summarisation (`group_by()` and `summarise()`)
+
+We can group the data by a categorical variable (`sex`) and then calculate summary statistics for a numeric variable (`neophobia`) within each group.
+
+```{r}
+# Group by 'sex' and calculate descriptive statistics for 'neophobia'
+df_summary <- df %>%
+  group_by(sex) %>%
+  summarise(
+    N = n(),
+    Mean_Neophobia = mean(neophobia, na.rm = TRUE),
+    Median_Neophobia = median(neophobia, na.rm = TRUE),
+    SD_Neophobia = sd(neophobia, na.rm = TRUE),
+    Min_Neophobia = min(neophobia, na.rm = TRUE),
+    Max_Neophobia = max(neophobia, na.rm = TRUE)
+  )
+
+# View the summary table
+print(df_summary)
+```
+
+------------------------------------------------------------------------
+
+## 8. Missing Data (`NA`) Handling
+
+Missing values (`NA`) can affect analysis. We must identify and decide how to treat them. We will use the `colassoc` column, which has 2 missing values.
+
+### 8.1 Counting `NA` Values
+
+We use `is.na()` to check for missing values and `sum()` to count them.
+
+```{r}
+# Count NA values in the whole dataset
+cat("Total NA values in the dataset:", sum(is.na(df)), "\n")
+
+# Count NA values in a specific column ('colassoc')
+na_count_colassoc <- sum(is.na(df$colassoc))
+cat("NA count in 'colassoc':", na_count_colassoc, "\n")
+```
+
+### 8.2 Filtering/Removing Rows with `NA` (`drop_na()`)
+
+We can remove rows that contain `NA` values in specific columns using `drop_na()` from `tidyr` (part of `tidyverse`).
+
+```{r}
+# Remove rows with NA in 'colassoc'
+df_clean_colassoc <- df %>%
+  drop_na(colassoc)
+
+# Check the new size of the dataset
+cat("Original rows:", nrow(df), "\n")
+cat("Rows after removing NA in 'colassoc':", nrow(df_clean_colassoc), "\n")
+
+# Remove rows with NA in *any* column
+df_complete_cases <- df %>%
+  drop_na()
+  
+cat("Rows after removing NA in *any* column:", nrow(df_complete_cases), "\n")
+```
+
+------------------------------------------------------------------------
+
+## 9. Hypothesis Testing and Normality
+
+We conclude with fundamental inferential statistics and a check for data normality. We'll use the `neophobia` score.
+
+### 9.1 One-Sample Z-Test
+
+A Z-test is used when the population standard deviation ($\sigma$) is known. We'll assume the population $\sigma$ for neophobia is $50.0$ and we test if the mean is significantly different from a hypothesized population mean ($\mu_0$) of $60$ seconds.
+
+```{r}
+# One-Sample Z-Test
+# Null Hypothesis (H0): Population mean neophobia is 60 seconds (mu = 60)
+# Alternative Hypothesis (HA): Population mean neophobia is NOT 60 seconds (mu != 60)
+
+# We use the z.test function from the BSDA package
+z.test(
+  x = df$neophobia,
+  mu = 60,       # Hypothesized population mean
+  sigma.x = 50,  # Known population standard deviation (assumed)
+  conf.level = 0.95
+)
+```
+
+### 9.2 One-Sample T-Test
+
+A T-test is used when the population standard deviation is **unknown** (which is more common). We test if the mean neophobia score is significantly different from a hypothesized value ($\mu_0$) of $50$ seconds.
+
+```{r}
+# One-Sample T-Test
+# Null Hypothesis (H0): Population mean neophobia is 50 seconds (mu = 50)
+# Alternative Hypothesis (HA): Population mean neophobia is NOT 50 seconds (mu != 50)
+
+t.test(
+  x = df$neophobia,
+  mu = 50,       # Hypothesized population mean
+  conf.level = 0.95)
+```
+
+### 9.3 Sample Size Calculation for One-Sample T-Test
+
+The `pwr` package can determine the required sample size ($N$) to detect a certain effect size ($\delta$) with a specified power ($1 - \beta$) and significance level ($\alpha$).
+
+We want to find $N$ to detect a **medium** effect size ($\delta = 0.5$) with $80\%$ power ($\beta = 0.20$) at an $\alpha = 0.05$ significance level.
+
+```{r}
+# Calculate required sample size (n) for a one-sample t-test
+pwr.t.test(
+  d = 0.5,        # Effect size (Cohen's d: 0.2=small, 0.5=medium, 0.8=large)
+  sig.level = 0.05, # Significance level (alpha)
+  power = 0.80,   # Desired power (1 - beta)
+  type = "one.sample",
+  alternative = "two.sided")
+```
+
+### 9.4 QQ Plot (Quantile-Quantile Plot)
+
+A QQ plot is a visual tool to assess if a dataset is approximately normally distributed. If the data is normal, the points will fall along the straight diagonal line.
+
+```{r}
+# Create a QQ plot for 'neophobia'
+qqnorm(df$neophobia,
+       main = "QQ Plot of Neophobia Scores",
+       xlab = "Theoretical Quantiles (Normal Distribution)",
+       ylab = "Sample Quantiles (Neophobia Score)")
+qqline(df$neophobia, col = "red") # Add a reference line
+```
+
+### 9.5 Shapiro-Wilk Test (Normality Testing)
+
+The Shapiro-Wilk test is a formal statistical test for normality.
+
+-   **Null Hypothesis (**$H_0$): The data is drawn from a normally distributed population.
+-   **Alternative Hypothesis (**$H_A$): The data is **not** drawn from a normally distributed population.
+
+If the $p$-value is less than the significance level (e.g., $\alpha = 0.05$), we reject $H_0$ and conclude the data is **not** normally distributed.
+
+```{r}
+# Perform the Shapiro-Wilk test on 'neophobia' scores
+shapiro.test(df$neophobia)
+```
+
+------------------------------------------------------------------------
+
+*Note: For all hypothesis tests, interpret the results based on the p-value. If* $p < \alpha$, the result is statistically significant.
