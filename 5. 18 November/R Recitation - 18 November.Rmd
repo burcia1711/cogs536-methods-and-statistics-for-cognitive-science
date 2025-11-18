@@ -1,6 +1,6 @@
-# Song Sparrow Cognition Data Analysis Lab
+# 536 R Recitation - 18 November
 
-This lab session will guide you through essential data analysis techniques in R, including descriptive statistics, visualization, data manipulation, and introductory inferential statistics. We will be using a dataset on **Song Sparrow cognition**.
+This lab session will go through essential data analysis techniques in R, including descriptive statistics, visualisation, data manipulation, and introductory inferential statistics. We will be using a dataset on **Song Sparrow cognition**.
 
 ## 1. Setup and Data Loading
 
@@ -8,6 +8,7 @@ First, we install and load the necessary R packages. The `tidyverse` is a collec
 
 ```{r}
 #install.packages("BSDA")
+# BSDA: Basic Statistics and Data Analysis
 ```
 
 ```{r}
@@ -19,23 +20,7 @@ library(tidyverse)
 library(readxl)
 library(pwr)
 library(BSDA) # For Z-test
-
-# Define a function to calculate the mode
-calculate_mode <- function(x) {
-  # Remove NA values before calculating the mode
-  x_clean <- na.omit(x)
-  if (length(x_clean) == 0) return(NA)
-  
-  # Calculate the frequency of each value
-  unique_values <- unique(x_clean)
-  counts <- table(x_clean)
-  
-  # Find the value(s) with the highest frequency
-  mode_value <- names(counts)[counts == max(counts)]
-  
-  # If there are multiple modes, return all of them
-  return(as.numeric(mode_value))
-}
+library(DescTools)
 
 # Load the dataset
 df <- read_excel("song+sparrow+cognition+data.xlsx", sheet = "Sheet2")
@@ -88,7 +73,7 @@ We will calculate the requested descriptive statistics for the `neophobia` varia
 | $N$ (Count) | `sum(!is.na())` or `length(na.omit())` | The number of non-missing observations. |
 | **Mean** | `mean()` | The arithmetic average. |
 | **Median** | `median()` | The middle value when the data is sorted. |
-| **Mode** | `calculate_mode()` | The most frequently occurring value. |
+| **Mode** | `Mode()` | The most frequently occurring value. |
 | **Range (Min/Max)** | `min()`, `max()`, `range()` | The smallest and largest values. |
 | **Interquartile Range** | `IQR()` | The difference between the 75th and 25th percentiles ($Q3 - Q1$). |
 | **Variance** | `var()` | The average of the squared differences from the Mean. |
@@ -110,7 +95,7 @@ median_val <- median(neophobia_scores, na.rm = TRUE)
 cat("Median:", median_val, "\n")
 
 # Mode (using the custom function)
-mode_val <- calculate_mode(neophobia_scores)
+mode_val <- Mode(neophobia_scores)
 cat("Mode(s):", mode_val, "\n")
 
 # Min Value
@@ -223,8 +208,7 @@ Examples that cause NA error :
 
 All of these contain **letters**, so `as.numeric()` cannot convert them to numbers.
 
-Convert factor/character labels into numeric IDs:
-This produces:
+Convert factor/character labels into numeric IDs: This produces:
 
 | bird  | bird_id_numeric |
 |-------|-----------------|
