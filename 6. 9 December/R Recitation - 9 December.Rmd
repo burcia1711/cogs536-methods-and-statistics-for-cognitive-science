@@ -1,6 +1,6 @@
 ---
 title: "Introduction to R: Data Structures & Control Flow"
-author: "Instructor"
+author: "Burcu"
 date: "`r Sys.Date()`"
 output: 
   html_document:
