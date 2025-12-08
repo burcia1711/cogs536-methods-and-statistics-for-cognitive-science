@@ -1,0 +1,226 @@
+---
+title: "Introduction to R: Data Structures & Control Flow"
+author: "Instructor"
+date: "`r Sys.Date()`"
+output: 
+  html_document:
+    theme: journal
+    toc: true
+    toc_float: true
+---
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## 1\. Data Frames
+
+A **Data Frame** is the most common way to store data in R. It is like a table in Excel where:
+
+  - Columns are variables (vectors).
+  - Rows are observations.
+  - Each column can contain a different data type (numeric, character, logical), but every item within a column must be the same type.
+
+### Creating a Data Frame
+
+Let's create a dataset representing student exam scores.
+
+```{r dataframe-create}
+# Creating vectors first
+students <- c("Alice", "Bob", "Charlie", "Diana", "Evan")
+math_scores <- c(88, 76, 95, 60, 45)
+passed_exam <- c(TRUE, TRUE, TRUE, TRUE, FALSE)
+
+# Combining them into a data frame
+df_grades <- data.frame(
+  Name = students,
+  Score = math_scores,
+  Passed = passed_exam
+)
+
+# Printing the data frame
+print(df_grades)
+```
+
+### Accessing Data
+
+We can access specific columns using the `$` sign or bracket notation `[row, column]`.
+
+```{r dataframe-access}
+# Accessing a column using $
+print(df_grades$Score)
+
+# Accessing row 3, column 1 (Charlie's Name)
+print(df_grades[3, 1])
+
+# Accessing all rows where the score is greater than 80
+high_scores <- df_grades[df_grades$Score > 80, ]
+print(high_scores)
+```
+
+-----
+
+## 2\. Generating Sequences (`seq`)
+
+Before we look at loops, we often need to generate lists of numbers to iterate over. We use the `seq()` function for this.
+
+```{r seq-examples}
+# Simple sequence from 1 to 5 using the colon operator
+simple_seq <- 1:5
+print(simple_seq)
+
+# Using seq() to specify the step size (e.g., even numbers)
+evens <- seq(from = 2, to = 10, by = 2)
+print(evens)
+
+# Using seq() to specify length (e.g., exactly 5 numbers between 0 and 1)
+fractions <- seq(from = 0, to = 1, length.out = 5)
+print(fractions)
+```
+
+-----
+
+## 3\. Control Flow: If and Else
+
+We use `if` and `else` to tell R to perform different actions based on a condition.
+
+### Basic Syntax
+
+```{r if-else}
+student_grade <- 45
+
+if (student_grade >= 50) {
+  print("Result: Passed")
+} else {
+  print("Result: Failed")
+}
+```
+
+### Nested If/Else (Else If)
+
+You can check multiple conditions.
+
+```{r else-if}
+temperature <- 20
+
+if (temperature > 30) {
+  print("It is hot.")
+} else if (temperature > 15) {
+  print("It is nice outside.")
+} else {
+  print("It is cold.")
+}
+```
+
+-----
+
+## 4\. Iteration: For Loops
+
+Loops allow us to repeat a block of code multiple times.
+
+### For-In Loops
+
+In R, `for` loops are designed to iterate *over* a sequence or vector. The syntax is `for (variable in sequence)`.
+
+```{r for-loop-basic}
+# Iterating over a sequence of numbers
+for (i in 1:3) {
+  print(paste("This is iteration number", i))
+}
+```
+
+### Looping over a Data Frame
+
+We can combine what we learned about Data Frames and `if/else` inside a loop.
+
+```{r for-loop-df}
+# Let's loop through our grade book
+for (i in 1:nrow(df_grades)) {
+  
+  current_name <- df_grades$Name[i]
+  current_score <- df_grades$Score[i]
+  
+  if (current_score >= 90) {
+    print(paste(current_name, "received an A!"))
+  } else if (current_score >= 50) {
+    print(paste(current_name, "passed."))
+  } else {
+    print(paste(current_name, "needs to retake the exam."))
+  }
+}
+```
+
+-----
+
+## 5\. Iteration: While Loops
+
+A `while` loop keeps running **as long as** a condition is `TRUE`. Be careful: if the condition never becomes `FALSE`, your loop will run forever\!
+
+```{r while-loop}
+counter <- 1
+
+while (counter <= 5) {
+  print(paste("Count is:", counter))
+  
+  # IMPORTANT: We must update the counter, or the loop never ends
+  counter <- counter + 1
+}
+```
+
+-----
+
+## 6\. Writing Functions
+
+Functions allow you to save a block of code and reuse it later. A function generally takes **inputs (arguments)** and returns an **output**.
+
+### Basic Structure
+
+```r
+my_function_name <- function(argument1) {
+  # Do something
+  return(result)
+}
+```
+
+### Example: A Metric Converter
+
+Let's write a function that converts Kilometers to Miles.
+
+```{r function-simple}
+km_to_miles <- function(km) {
+  miles <- km * 0.621371
+  return(miles)
+}
+
+# Testing the function
+dist_1 <- km_to_miles(10)
+dist_2 <- km_to_miles(50)
+
+print(paste("10 km is", round(dist_1, 2), "miles"))
+print(paste("50 km is", round(dist_2, 2), "miles"))
+```
+
+### Example: Custom Grading Function
+
+Let's combine `if/else` logic into a reusable function.
+
+```{r function-complex}
+check_pass_fail <- function(score) {
+  if (score >= 50) {
+    return("PASS")
+  } else {
+    return("FAIL")
+  }
+}
+
+# Test on a new score
+print(check_pass_fail(88))
+print(check_pass_fail(32))
+```
+
+## Summary Exercises
+
+1.  Create a data frame of your 3 favorite movies and their ratings.
+2.  Write a function that takes a number and returns its square.
+3.  Use a `for` loop to print the square of numbers 1 through 5.
+
+
