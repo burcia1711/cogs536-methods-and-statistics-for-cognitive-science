@@ -1,0 +1,245 @@
+---
+title: "R Recitation - 17 December"
+author: "Burcu"
+output:
+  html_document:
+    toc: true
+    toc_depth: 3
+    number_sections: true
+editor_options: 
+  markdown: 
+    wrap: 72
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, message = FALSE, warning = FALSE)
+```
+
+-   foundations + one-way between-subject ANOVA + one-way
+    repeated-measures ANOVA + contrasts + post-hoc corrections.
+
+# 1 — Foundations of ANOVA
+
+## 1. Quick data inspection checklist
+
+-   Students often skip checking factor types and end up with numeric
+    IVs.
+-   In ANOVA, predictors should be **factors**, outcome should be
+    **numeric**.
+
+```{r}
+# A minimal "inspection" template
+inspect_data <- function(df) {
+  cat("---- STRUCTURE ----\n")
+  print(str(df))
+  cat("\n---- SUMMARY ----\n")
+  print(summary(df))
+  cat("\n---- MISSING VALUES ----\n")
+  print(colSums(is.na(df)))
+}
+
+# Example on a built-in dataset:
+inspect_data(mtcars)
+```
+
+## 2. Between-subject vs within-subject (quick intuition)
+
+-   Between-subject: each participant contributes ONE score (per
+    Dependent Variable) for the condition they are in.
+-   Within-subject: each participant contributes MULTIPLE scores
+    (repeated measures).
+
+## 3. One-way between-subject ANOVA (core)
+
+### Example: Viagra dose → Libido
+
+This is a small dataset similar to the lecture example: three groups
+(Placebo/Low/High) and a numeric DV.
+
+```{r}
+viagra <- data.frame(
+  Dose = factor(rep(c("Placebo", "Low", "High"), each = 10),
+                levels = c("Placebo", "Low", "High")),
+  Libido = c(
+    # Placebo
+    3,2,1,1,4,2,3,1,2,4,
+    # Low
+    5,2,4,2,3,4,5,3,4,2,
+    # High
+    7,4,5,3,6,5,6,4,7,5
+  )
+)
+
+inspect_data(viagra)
+aggregate(Libido ~ Dose, viagra, mean)
+```
+
+### Fit the one-way ANOVA with `aov()`
+
+```{r}
+m_oneway <- aov(Libido ~ Dose, data = viagra)
+summary(m_oneway)
+```
+
+### Visualize group means quickly
+
+```{r}
+boxplot(Libido ~ Dose, data = viagra, main = "Libido by Viagra Dose",
+        xlab = "Dose", ylab = "Libido")
+```
+
+------------------------------------------------------------------------
+
+## 4. Assumptions (and the “residuals, not raw data” note)
+
+-   Normality check is typically applied to **residuals** (or model
+    errors), not each raw group.
+-   Homogeneity of variance is commonly checked via Levene’s test.
+
+### 4.1 Normality of residuals
+
+```{r}
+shapiro.test(residuals(m_oneway))
+qqnorm(residuals(m_oneway)); qqline(residuals(m_oneway))
+```
+
+### 4.2 Homogeneity of variance (Levene)
+
+```{r}
+# If not installed, run: install.packages("car")
+library(car)
+leveneTest(Libido ~ Dose, data = viagra)
+```
+
+### If homogeneity is violated: Welch ANOVA (optional)
+
+```{r}
+oneway.test(Libido ~ Dose, data = viagra, var.equal = FALSE)
+```
+
+------------------------------------------------------------------------
+
+## 5. Planned contrasts (orthogonal comparisons)
+
+-   Contrasts are **hypothesis-driven** comparisons.
+-   For 3 groups, we can test:
+    1)  Placebo vs (Low + High)
+    2)  Low vs High
+
+### Approach 1: Set custom contrasts in R
+
+```{r}
+viagra_c <- viagra
+# Contrast 1: Placebo vs (Low+High)  -> (-2, +1, +1)
+# Contrast 2: Low vs High           -> (0, -1, +1)
+contrasts(viagra_c$Dose) <- cbind(
+  Placebo_vs_Treated = c(-2, 1, 1),
+  Low_vs_High        = c(0, -1, 1)
+)
+
+m_contrast <- aov(Libido ~ Dose, data = viagra_c)
+summary(m_contrast)
+```
+
+### Approach 2 (optional): Directly test specific comparisons using `emmeans`
+
+If you want a more flexible workflow for follow-ups (still based on the
+`aov` fit).
+
+```{r}
+# install.packages("emmeans")
+library(emmeans)
+
+emm <- emmeans(m_oneway, ~ Dose)
+emm
+
+# Planned comparisons:
+contrast(emm, list(
+  Placebo_vs_Treated = c(-2, 1, 1),
+  Low_vs_High        = c(0, -1, 1)
+))
+```
+
+------------------------------------------------------------------------
+
+## 6. Post-hoc tests + multiple comparisons corrections
+
+-   Post-hoc tests are used when we did not specify planned contrasts
+    beforehand.
+-   Pairwise t-tests with correction is the simplest teaching-friendly
+    option.
+
+```{r}
+pairwise.t.test(viagra$Libido, viagra$Dose, p.adjust.method = "bonferroni")
+pairwise.t.test(viagra$Libido, viagra$Dose, p.adjust.method = "holm")
+```
+
+### Optional: Tukey HSD (classic ANOVA post-hoc for equal variances)
+
+```{r}
+TukeyHSD(m_oneway)
+```
+
+------------------------------------------------------------------------
+
+## 7. One-way repeated-measures ANOVA (core)
+
+### Example B: Repeated measures across 3 conditions
+
+Here we create a within-subject dataset in **long format**: - `Subject`:
+participant ID (factor) - `Condition`: within-subject factor - `Score`:
+DV
+
+```{r}
+set.seed(1)
+rm_data <- expand.grid(
+  Subject   = factor(1:18),
+  Condition = factor(c("A", "B", "C"), levels = c("A", "B", "C"))
+)
+
+# Simulate a pattern: B > A, C highest
+rm_data$Score <- with(rm_data,
+  rnorm(nrow(rm_data),
+        mean = ifelse(Condition == "A", 50,
+               ifelse(Condition == "B", 55, 60)),
+        sd = 6)
+)
+
+head(rm_data)
+```
+
+### Repeated-measures ANOVA using `aov()` with `Error()`
+
+```{r}
+m_rm <- aov(Score ~ Condition + Error(Subject/Condition), data = rm_data)
+summary(m_rm)
+```
+
+-   This output is split into **Error strata**.
+-   Students should learn to locate the line for the within-subject
+    effect (Condition).
+
+------------------------------------------------------------------------
+
+## 8. When assumptions fail: Friedman’s ANOVA (non-parametric RM)
+
+-   Friedman is an alternative when repeated-measures assumptions are
+    badly violated.
+-   Friedman requires wide-ish input (or you can reshape). We'll reshape
+    long→wide here.
+
+```{r}
+rm_wide <- reshape(rm_data, timevar = "Condition", idvar = "Subject", direction = "wide")
+head(rm_wide)
+
+friedman.test(as.matrix(rm_wide[, c("Score.A", "Score.B", "Score.C")]))
+```
+
+### Optional follow-up after Friedman
+
+There are multiple approaches (Conover, pairwise Wilcoxon with
+correction).
+
+```{r}
+pairwise.wilcox.test(rm_data$Score, rm_data$Condition, paired = TRUE, p.adjust.method = "bonferroni")
+```
