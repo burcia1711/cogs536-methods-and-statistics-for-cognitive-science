@@ -1,0 +1,217 @@
+---
+title: "COGS 536 Recitation - 30 December"
+author: Burcu
+output:
+  html_document:
+    toc: true
+    toc_depth: 3
+    number_sections: true
+editor_options: 
+  markdown: 
+    wrap: 72
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, message = FALSE, warning = FALSE)
+```
+
+-   **Week 2:** factorial ANOVA + within-subject ANOVA (2–3 way) + mixed
+    ANOVA (between + within) + follow-ups.
+
+# 2 — Factorial, Within-Subject (2–3 way), and Mixed ANOVA
+
+## 9. Factorial (two-way between-subject) ANOVA
+
+### Example: Alcohol × Gender → Attractiveness rating
+
+```{r}
+set.seed(2)
+
+alcohol <- expand.grid(
+  Alcohol = factor(c("None", "2pints", "4pints"), levels = c("None", "2pints", "4pints")),
+  Gender  = factor(c("Female", "Male"), levels = c("Female", "Male")),
+  rep     = 1:18
+)
+
+# Simulate an interaction: alcohol affects males more negatively at 4pints
+base <- 60
+alcohol$Rating <- with(alcohol,
+  base +
+    ifelse(Gender == "Female", 2, -2) +
+    ifelse(Alcohol == "None", 0, ifelse(Alcohol == "2pints", 2, -8)) +
+    ifelse(Gender == "Male" & Alcohol == "4pints", -10, 0) +
+    rnorm(nrow(alcohol), 0, 6)
+)
+
+alcohol <- alcohol[, c("Alcohol","Gender","Rating")]
+head(alcohol)
+```
+
+### Fit two-way ANOVA with interaction
+
+```{r}
+m_2way <- aov(Rating ~ Alcohol * Gender, data = alcohol)
+summary(m_2way)
+```
+
+### Interaction plot
+
+```{r}
+interaction.plot(alcohol$Alcohol, alcohol$Gender, alcohol$Rating,
+                 xlab = "Alcohol", ylab = "Mean rating", trace.label = "Gender")
+```
+
+### Follow-ups if interaction is significant (simple comparisons)
+
+```{r}
+library(emmeans)
+emm2 <- emmeans(m_2way, ~ Alcohol | Gender)
+pairs(emm2, adjust = "bonferroni")
+```
+
+------------------------------------------------------------------------
+
+## 10. Two-way within-subject ANOVA
+
+### Example D: Looks × Charisma (both within-subject)
+
+We simulate a within-subject design with two within factors: - Looks:
+Attractive / Average / Ugly - Charisma: High / Some / None
+
+```{r}
+set.seed(3)
+
+speed <- expand.grid(
+  Subject  = factor(1:30),
+  Looks    = factor(c("Attractive","Average","Ugly"),
+                    levels = c("Attractive","Average","Ugly")),
+  Charisma = factor(c("High","Some","None"),
+                    levels = c("High","Some","None"))
+)
+
+# Simulate main effects + interaction-ish structure
+speed$Rating <- with(speed,
+  75 +
+    ifelse(Looks == "Attractive", 10, ifelse(Looks == "Average", 0, -12)) +
+    ifelse(Charisma == "High", 8, ifelse(Charisma == "Some", 0, -10)) +
+    # small interaction: charisma matters less when looks are ugly
+    ifelse(Looks == "Ugly" & Charisma == "High", -4, 0) +
+    rnorm(nrow(speed), 0, 7)
+)
+
+head(speed)
+```
+
+### Fit two-way within-subject ANOVA with `aov()` + `Error()`
+
+```{r}
+m_within2 <- aov(Rating ~ Looks * Charisma + Error(Subject/(Looks*Charisma)), data = speed)
+summary(m_within2)
+```
+
+------------------------------------------------------------------------
+
+## 11. Three-way mixed ANOVA (one between + two within)
+
+### Example E: Add Gender as between-subject factor to Speed Dating
+
+```{r}
+set.seed(4)
+
+# Add a between-subject variable (Gender) at the subject level
+subj_gender <- data.frame(
+  Subject = factor(1:30),
+  Gender  = factor(rep(c("Female","Male"), each = 15), levels = c("Female","Male"))
+)
+
+speed_mixed <- merge(speed, subj_gender, by = "Subject")
+
+# Slightly modify ratings: gender difference depends on looks (toy pattern)
+speed_mixed$Rating2 <- with(speed_mixed,
+  Rating +
+    ifelse(Gender == "Female" & Looks == "Attractive", 2, 0) +
+    ifelse(Gender == "Male" & Looks == "Ugly", -2, 0)
+)
+
+head(speed_mixed)
+```
+
+### Mixed ANOVA via `aov()`
+
+```{r}
+m_mixed3 <- aov(Rating2 ~ Gender * Looks * Charisma + Error(Subject/(Looks*Charisma)), data = speed_mixed)
+summary(m_mixed3)
+```
+
+### Follow-up strategy
+
+**Rule of thumb:** interpret in this order
+
+1.  Three-way interaction (Gender × Looks × Charisma)
+2.  Two-way interactions
+3.  Main effects (only if higher-order interactions are not meaningful)
+
+#### Example follow-up: simple effects of Looks within each Gender (collapsed over Charisma)
+
+```{r}
+emm_mixed <- emmeans(aov(Rating2 ~ Gender * Looks * Charisma, data = speed_mixed),
+                     ~ Looks | Gender)
+pairs(emm_mixed, adjust = "holm")
+```
+
+> Technical note: For follow-ups we often refit without `Error()` using
+> a mixed-model workflow. For this course, it is acceptable to show
+> follow-ups via `emmeans` on the fixed-effects model as a **teaching
+> approximation**. If you want a fully correct repeated-measures
+> follow-up pipeline, consider `afex::aov_ez()` or mixed-effects models
+> (optional, not required).
+
+------------------------------------------------------------------------
+
+## 12. Reporting templates (APA-style)
+
+### One-way between-subject ANOVA
+
+> A one-way between-subjects ANOVA showed a significant effect of
+> **Dose** on libido scores, *F*(2, 27) = ..., *p* = ..., indicating
+> that libido differed across dose levels.
+
+### Two-way between-subject ANOVA
+
+> A two-way ANOVA revealed a significant **Alcohol × Gender**
+> interaction, *F*(2, ...) = ..., *p* = ..., suggesting that the effect
+> of alcohol on ratings differed by gender.
+
+### Repeated-measures ANOVA
+
+> A one-way repeated-measures ANOVA showed a significant effect of
+> **Condition** on scores, *F*(2, ...) = ..., *p* = ... .
+
+### Friedman’s ANOVA
+
+> Participants differed across conditions, χ²(2) = ..., *p* = ... .
+
+------------------------------------------------------------------------
+
+# Optional appendix — Extra examples to swap in
+
+## A. Use a real dataset (optional): `ToothGrowth` for one-way or two-way ANOVA
+
+```{r}
+data(ToothGrowth)
+head(ToothGrowth)
+
+# One-way example (dose only)
+ToothGrowth$dose_f <- factor(ToothGrowth$dose)
+m_tg_1 <- aov(len ~ dose_f, data = ToothGrowth)
+TukeyHSD(m_tg_1)
+
+# Two-way factorial (dose × supp)
+m_tg_2 <- aov(len ~ dose * supp, data = ToothGrowth)
+summary(m_tg_2)
+```
+
+## B. Quick reminder: ANOVA is part of the GLM family
+
+-   ANOVA can be seen as regression with categorical predictors.
+-   This helps later with correlation/regression weeks.
