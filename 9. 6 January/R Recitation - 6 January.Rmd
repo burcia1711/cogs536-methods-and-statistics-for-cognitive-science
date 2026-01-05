@@ -1,0 +1,685 @@
+---
+title: "R Recitation - 6 January: Correlation (Parametric & Non-Parametric) + Linear Regression (Full Walkthrough)"
+author: "Burcu"
+date: "`r format(Sys.Date(), '%d %B %Y')`"
+output:
+  html_document:
+    toc: true
+    toc_depth: 3
+    number_sections: true
+    df_print: paged
+  pdf_document:
+    toc: true
+    toc_depth: 3
+    number_sections: true
+fontsize: 11pt
+geometry: margin=1in
+editor_options:
+  markdown:
+    wrap: 72
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+  echo = TRUE,
+  message = FALSE,
+  warning = FALSE,
+  fig.width = 7,
+  fig.height = 5,
+  fig.align = "center"
+)
+
+# Packages (install if needed)
+pkgs <- c("tidyverse", "broom", "car")
+to_install <- pkgs[!pkgs %in% installed.packages()[, "Package"]]
+if (length(to_install) > 0) install.packages(to_install, quiet = TRUE)
+
+library(tidyverse)
+library(broom)
+library(car)
+```
+
+# Learning goals
+
+By the end of this recitation, you should be able to:
+
+1.  Compute and interpret correlation using:
+
+    -   Pearson (parametric)
+
+    -   Spearman and Kendall (non-parametric)
+
+2.  Build a linear regression model step-by-step in R:
+
+    -   Specify the model
+
+    -   Inspect coefficients and model fit
+
+    -   Compare nested models
+
+3.  Diagnose regression assumptions and common problems:
+
+    -   Linearity
+
+    -   Independence (conceptual + when it matters)
+
+    -   Homoscedasticity
+
+    -   Normality of residuals
+
+    -   Outliers and influential observations
+
+    -   Multicollinearity (for multiple regression)
+
+4.  Report results clearly using standard statistics language.
+
+# Correlation (brief but complete)
+
+## Why start with a plot?
+
+Correlation is a number, but *relationships are visual*. Always start
+with a scatterplot.
+
+We'll work with a small simulated example to illustrate all methods
+cleanly.
+
+```{r}
+set.seed(42)
+n <- 80
+
+# Create an x variable
+
+x <- rnorm(n, mean = 10, sd = 2)
+
+# Create a y variable with a roughly linear relationship + noise
+
+y <- 3 + 1.2 * x + rnorm(n, mean = 0, sd = 2)
+
+df_corr <- tibble(x = x, y = y)
+
+ggplot(df_corr, aes(x, y)) +
+geom_point() +
+geom_smooth(method = "lm", se = FALSE) +
+labs(title = "Scatterplot with regression line",
+subtitle = "Always check the shape of the relationship first")
+```
+
+## Pearson correlation (parametric)
+
+Pearson correlation measures *linear association* between two continuous
+variables.
+
+### Typical conditions (practical framing)
+
+-   The relationship is approximately linear.
+
+-   Extreme outliers can distort Pearson strongly.
+
+-   Normality is not a strict requirement for using Pearson in all
+    cases, but it matters more for small samples and for inference.
+
+```{r}
+cor(df_corr$x, df_corr$y, method = "pearson")
+
+cor.test(df_corr$x, df_corr$y, method = "pearson")
+```
+
+### How to report (template)
+
+"There was a (positive/negative) linear association between X and Y,
+Pearson’s r(df) = ..., p = ..., 95% CI [..., ...]."
+
+## Spearman and Kendall (non-parametric)
+
+Non-parametric correlation is useful when:
+
+-   The relationship is monotonic but not linear,
+
+-   The data are ordinal, or
+
+-   You want a rank-based measure less sensitive to outliers /
+    non-normality.
+
+### Spearman (rank correlation; monotonic relationships)
+
+```{r}
+cor(df_corr$x, df_corr$y, method = "spearman")
+cor.test(df_corr$x, df_corr$y, method = "spearman", exact = FALSE)
+```
+
+### Kendall (based on concordant/discordant pairs; robust in small n / ties)
+
+```{r}
+cor(df_corr$x, df_corr$y, method = "kendall")
+cor.test(df_corr$x, df_corr$y, method = "kendall", exact = FALSE)
+```
+
+## Quick comparison: when to use which?
+
+-   **Pearson**: linear association, continuous variables, no severe
+    outliers, interpretability in linear units is aligned with
+    regression.
+
+-   **Spearman**: monotonic association (not necessarily linear),
+    ordinal data, more robust to non-normality and some outliers.
+
+-   **Kendall**: similar goals as Spearman; can be preferable with small
+    samples and many ties.
+
+--------------------------
+
+# Linear regression (walkthrough)
+
+Regression is not just "a line": it is a *model* that explains/predicts
+an outcome using one or more predictors, and it comes with assumptions
+we must check.
+
+We will use a real dataset (`mtcars`) for a concrete end-to-end
+demonstration.
+
+## Data and question
+
+We will model fuel efficiency (`mpg`) using:
+
+-   `wt` (car weight)
+
+-   `hp` (horsepower)
+
+**Question:** How do weight and horsepower relate to miles per gallon?
+
+```{r}
+df <- mtcars %>%
+as_tibble(rownames = "car") %>%
+select(car, mpg, wt, hp, cyl)
+
+glimpse(df)
+summary(df)
+```
+
+## First: visualize relationships
+
+```{r}
+ggplot(df, aes(wt, mpg)) +
+geom_point() +
+geom_smooth(method = "lm", se = FALSE) +
+labs(title = "mpg vs wt", subtitle = "Weight is often a strong predictor of mpg")
+```
+
+```{r}
+ggplot(df, aes(hp, mpg)) +
+geom_point() +
+geom_smooth(method = "lm", se = FALSE) +
+labs(title = "mpg vs hp", subtitle = "Horsepower also relates to mpg")
+```
+
+## The simple linear regression model (one predictor)
+
+### Model specification
+
+A simple linear regression with one predictor is:
+
+$mpg_i=b_0+b_1⋅wt_i+ϵ_i$
+
+where:
+
+-   $b_0$​ is the intercept,
+
+-   $b_1$ is the slope for $wt$
+
+-   $\epsilon_i​$ are residual errors.
+
+### Fit the model in R
+
+```{r}
+m1 <- lm(mpg ~ wt, data = df)
+summary(m1)
+```
+
+### Interpret coefficients (what to say in class)
+
+-   **Intercept (**$b_0$**):** predicted mpg when $wt$ = 0 (often not
+    meaningful if $wt$=0 is outside the data range; but it is part of
+    the line).
+
+-   **Slope (**$b_1$**):** expected change in mpg for a 1-unit increase
+    in $wt$ (here, $wt$ is 1000 lbs in `mtcars` units).
+
+### Get a clean coefficient table
+
+```{r}
+tidy(m1, conf.int = TRUE)
+```
+
+## Model fit: R-squared and residual standard error
+
+The `summary(m1)` output includes:
+
+-   **Multiple R-squared:** proportion of variance in mpg explained by
+    wt.
+
+-   **Adjusted R-squared:** penalizes for extra predictors (important
+    later).
+
+-   **Residual standard error (RSE):** typical size of prediction errors
+    (in mpg).
+
+Extract key fit metrics programmatically:
+
+```{r}
+glance(m1) %>%
+select(r.squared, adj.r.squared, sigma, statistic, p.value, df.residual)
+```
+
+### Predictions (fitted values) and residuals
+
+```{r}
+df_aug <- augment(m1)  # adds .fitted and .resid columns
+head(df_aug)
+```
+
+Plot fitted vs observed:
+
+```{r}
+ggplot(df_aug, aes(.fitted, mpg)) +
+geom_point() +
+geom_abline(slope = 1, intercept = 0, linetype = "dashed") +
+labs(title = "Observed mpg vs Fitted mpg",
+subtitle = "Closer to the diagonal indicates better fit")
+```
+
+-----------------------
+
+# Multiple regression (step-by-step model building)
+
+Now we add horsepower:
+
+$mpg_i=b_0+b_1⋅wt_i+b_2⋅hp_i+ϵ_i$
+​
+
+```{r}
+m2 <- lm(mpg ~ wt + hp, data = df)
+summary(m2)
+tidy(m2, conf.int = TRUE)
+```
+
+## Interpreting coefficients in multiple regression (critical)
+
+-   The coefficient of `wt` in `m2` means: **"Expected change in mpg for
+    a 1-unit increase in weight, *holding hp constant*."**
+
+-   The coefficient of `hp` in `m2` means: **"Expected change in mpg for
+    a 1-unit increase in horsepower, *holding wt constant*."**
+
+This "holding other variables constant" is what makes multiple
+regression powerful, and what makes interpretation different from simple
+regression.
+
+## Compare nested models (does adding hp improve the model?)
+
+`m1` is nested within `m2` (m2 adds hp). We can use ANOVA (F-test) to
+compare:
+
+```{r}
+anova(m1, m2)
+```
+
+Interpretation:
+
+-   If p-value is small, adding `hp` significantly improves model fit
+    (beyond wt alone).
+
+## AIC comparison (optional model selection tool)
+
+Lower AIC is better (penalizes complexity):
+
+```{r}
+AIC(m1, m2)
+```
+
+-------------------------
+
+# Regression assumptions: how to check them in R
+
+A strong regression workflow is:
+
+1.  Fit the model
+
+2.  Inspect diagnostics
+
+3.  Identify violations
+
+4.  Adjust model or interpret cautiously
+
+We’ll use `m2` (multiple regression) for diagnostics.
+
+### The "big four" diagnostic plots
+
+```{r}
+par(mfrow = c(2, 2))
+plot(m2)
+par(mfrow = c(1, 1))
+```
+
+### These correspond to:
+
+1.  Residuals vs Fitted (linearity + mean-zero errors)
+
+2.  Normal Q-Q (normality of residuals)
+
+3.  Scale-Location (homoscedasticity)
+
+4.  Residuals vs Leverage (influential points)
+
+We will now go one-by-one.
+
+## Linearity
+
+### What it means
+
+The mean of Y should be a linear function of predictors (in the
+parameters). If the relationship is curved, a straight-line model is
+misspecified.
+
+### How to check
+
+-   Residuals vs fitted should show no systematic pattern (no curve).
+
+```{r}
+plot(m2, which = 1)
+```
+
+**What to say:**
+
+-   If you see a clear curve or structure, linearity is likely violated.
+
+-   Potential responses: transform variables, add polynomial terms, or
+    use splines (beyond today’s scope, but good to mention as next
+    steps).
+
+## Independence
+
+### What it means
+
+Residuals should be independent across observations.
+
+### When it matters
+
+-   Time series or longitudinal data: consecutive observations may be
+    correlated.
+
+-   Clustered data: students within the same class, patients within the
+    same hospital.
+
+### How to check (conceptual here)
+
+With `mtcars`, independence is mostly a design assumption. In real
+studies, you check data collection design. For time-ordered data you can
+inspect residuals over time; for clustered data you may need mixed
+models.
+
+*(We won’t run a formal autocorrelation test here, but we note the
+assumption and when it can fail.)*
+
+## Homoscedasticity (constant variance)
+
+### What it means
+
+The spread of residuals should be roughly constant across fitted values.
+
+### How to check
+
+-   Look for "funnel" or "megaphone" shapes.
+
+-   Use Scale-Location plot.
+
+```{r}
+plot(m2, which = 3)
+```
+
+**If violated:**
+
+-   Standard errors may be biased.
+
+-   Potential responses: transformations (e.g., log), robust standard
+    errors, or modeling variance explicitly.
+
+## Normality of residuals
+
+### What it means
+
+Residuals are approximately normally distributed.
+
+This matters mostly for:
+
+-   small-sample inference on coefficients
+
+-   confidence intervals and p-values (less critical in large n due to
+    CLT)
+
+### How to check
+
+-   Q-Q plot: points should roughly follow the line.
+
+```{r}
+plot(m2, which = 2)
+```
+
+Optional: Shapiro-Wilk test *(remember: can be too sensitive in large n
+and too weak in small n; prefer plots + context).*
+
+```{r}
+shapiro.test(resid(m2))
+```
+
+## Outliers and influential observations
+
+### Concepts (important distinctions)
+
+-   **Outlier in Y:** unusual outcome value (large residual)
+
+-   **High leverage:** unusual X values (far from center in predictor
+    space)
+
+-   **Influential point:** changes the model noticeably (often high
+    leverage + large residual)
+
+### Cook's distance (influence)
+
+```{r}
+cooks <- cooks.distance(m2)
+
+# Quick look at the largest Cook's distances
+
+sort(cooks, decreasing = TRUE)[1:6]
+
+```
+
+A common rule-of-thumb threshold:
+
+$Di>4/n$
+
+```{r}
+n <- nrow(df)
+which(cooks > (4 / n))
+```
+
+```{r}
+# Plot Cook’s distance:
+plot(m2, which = 4)
+```
+
+```{r}
+# Leverage and influence plot
+plot(m2, which = 5)
+```
+
+**How to handle influential points (what to teach):**
+
+-   Do not delete automatically.
+
+-   Investigate: data entry error? special case? legitimate observation?
+
+-   Report sensitivity: fit model with/without the point and compare
+    conclusions.
+
+## Multicollinearity (multiple regression only)
+
+### What it means
+
+Predictors are correlated with each other, making coefficient estimates
+unstable (large standard errors, sign flips).
+
+### How to check
+
+Variance Inflation Factor (VIF):
+
+```{r}
+vif(m2)
+```
+
+Interpretation:
+
+-   Larger VIF indicates more multicollinearity.
+
+-   There is no single universal cutoff, but very high VIF suggests
+    interpretation problems and unstable estimates.
+
+-----------------------
+
+# Model refinement examples (guided options)
+
+This section shows how you might *improve* a model when diagnostics
+indicate issues.
+
+## Add an interaction term (optional extension)
+
+Sometimes the effect of weight depends on horsepower:
+
+$mpg=b_0​+b_1​wt+b_2​hp+b_3​(wt⋅hp)+ϵ$
+
+```{r}
+m3 <- lm(mpg ~ wt * hp, data = df)
+summary(m3)
+anova(m2, m3)
+```
+
+Interpretation:
+
+-   If interaction is significant, the slope of `wt` differs across
+    levels of `hp` (or vice versa). Interpretation becomes conditional.
+
+## Centering predictors (helps interpretation; sometimes helps collinearity)
+
+Centering makes the intercept meaningful at the *average* predictor
+values.
+
+```{r}
+df_centered <- df %>%
+mutate(
+wt_c = wt - mean(wt),
+hp_c = hp - mean(hp)
+)
+
+m2c <- lm(mpg ~ wt_c + hp_c, data = df_centered)
+summary(m2c)
+tidy(m2c, conf.int = TRUE)
+```
+
+-------------------
+
+# Reporting regression results (templates)
+
+## Simple regression report template
+
+"Weight significantly predicted fuel efficiency,
+$b=..., t(df)=..., p=..., R^2=...$"
+
+## Multiple regression report template
+
+"A multiple linear regression was fit to predict mpg from weight and
+horsepower.\
+The model explained $R^2=...$ of variance in mpg (Adj. $R^2=...$).
+Holding the other predictor constant, weight was associated with a
+change of ... mpg per unit, and horsepower was associated with a change
+of ... mpg per unit."
+
+You can extract the values for reporting:
+
+```{r}
+coefs <- tidy(m2, conf.int = TRUE)
+fit   <- glance(m2)
+
+coefs
+fit %>% select(r.squared, adj.r.squared, sigma, statistic, p.value, df.residual)
+```
+
+--------------------
+
+# Short exercises
+
+## Exercise 1: Correlation (quick)
+
+1.  Use `cor.test()` to compute Pearson and Spearman correlation between
+    `wt` and `mpg`.
+
+2.  Compare results and explain any differences.
+
+```{r}
+cor.test(df$wt, df$mpg, method = "pearson")
+cor.test(df$wt, df$mpg, method = "spearman", exact = FALSE)
+```
+
+## Exercise 2: Build and diagnose your own regression
+
+1.  Fit `mpg ~ wt`
+
+2.  Fit `mpg ~ wt + hp`
+
+3.  Compare models using `anova(m1, m2)`
+
+4.  Inspect the 4 diagnostic plots for `m2` and write 2–3 sentences:
+
+    -   Is linearity plausible?
+
+    -   Any signs of heteroscedasticity?
+
+    -   Any influential points?
+
+```{r}
+m1_ex <- lm(mpg ~ wt, data = df)
+m2_ex <- lm(mpg ~ wt + hp, data = df)
+
+anova(m1_ex, m2_ex)
+
+par(mfrow = c(2, 2))
+plot(m2_ex)
+par(mfrow = c(1, 1))
+```
+
+---------------------
+
+# Appendix — Cheatsheet (what you should remember)
+
+## Correlation
+
+-   `cor(x, y, method="pearson"|"spearman"|"kendall")`
+
+-   `cor.test(x, y, ...)` for inference + CI
+
+## Regression basics
+
+-   `lm(y ~ x, data=df)`
+
+-   `summary(model)` for coefficients, R², tests
+
+-   `tidy(model)` and `glance(model)` for clean tables
+
+## Diagnostics
+
+-   `plot(model)` (4 key diagnostic plots)
+
+-   `cooks.distance(model)` for influence
+
+-   `car::vif(model)` for multicollinearity
+
+    `shapiro.test(resid(model))` (use plots + context)
