@@ -11,7 +11,7 @@
 
 <meta name="author" content="Burcu" />
 
-<meta name="date" content="2026-01-05" />
+<meta name="date" content="2026-01-06" />
 
 <title>R Recitation - 6 January: Correlation (Parametric &amp; Non-Parametric) + Linear Regression (Full Walkthrough)</title>
 
@@ -1625,14 +1625,14 @@ display: none;
 (Parametric &amp; Non-Parametric) + Linear Regression (Full
 Walkthrough)</h1>
 <h4 class="author">Burcu</h4>
-<h4 class="date">05 January 2026</h4>
+<h4 class="date">06 January 2026</h4>
 
 </div>
 
 <div id="TOC">
 <ul>
 <li><a href="#learning-goals" id="toc-learning-goals"><span class="toc-section-number">1</span> Learning goals</a></li>
-<li><a href="#correlation-brief-but-complete" id="toc-correlation-brief-but-complete"><span class="toc-section-number">2</span> Correlation (brief but complete)</a>
+<li><a href="#correlation-briefly" id="toc-correlation-briefly"><span class="toc-section-number">2</span> Correlation (briefly)</a>
 <ul>
 <li><a href="#why-start-with-a-plot" id="toc-why-start-with-a-plot"><span class="toc-section-number">2.1</span> Why start with a plot?</a></li>
 <li><a href="#pearson-correlation-parametric" id="toc-pearson-correlation-parametric"><span class="toc-section-number">2.2</span> Pearson correlation
@@ -1653,6 +1653,15 @@ concordant/discordant pairs; robust in small n / ties)</a></li>
 </ul></li>
 <li><a href="#quick-comparison-when-to-use-which" id="toc-quick-comparison-when-to-use-which"><span class="toc-section-number">2.4</span> Quick comparison: when to use
 which?</a></li>
+<li><a href="#chi-square-test" id="toc-chi-square-test"><span class="toc-section-number">2.5</span> Chi-square Test</a>
+<ul>
+<li><a href="#what-question-does-the-chi-square-test-answer" id="toc-what-question-does-the-chi-square-test-answer"><span class="toc-section-number">2.5.1</span> What question does the
+chi-square test answer?</a></li>
+<li><a href="#assumptions-of-the-chi-square-test" id="toc-assumptions-of-the-chi-square-test"><span class="toc-section-number">2.5.2</span> Assumptions of the chi-square
+test</a></li>
+<li><a href="#fishers-exact-test-small-samples" id="toc-fishers-exact-test-small-samples"><span class="toc-section-number">2.5.3</span> Fisher’s Exact Test (small
+samples)</a></li>
+</ul></li>
 </ul></li>
 <li><a href="#linear-regression-walkthrough" id="toc-linear-regression-walkthrough"><span class="toc-section-number">3</span> Linear regression (walkthrough)</a>
 <ul>
@@ -1664,8 +1673,7 @@ relationships</a></li>
 <ul>
 <li><a href="#model-specification" id="toc-model-specification"><span class="toc-section-number">3.3.1</span> Model specification</a></li>
 <li><a href="#fit-the-model-in-r" id="toc-fit-the-model-in-r"><span class="toc-section-number">3.3.2</span> Fit the model in R</a></li>
-<li><a href="#interpret-coefficients-what-to-say-in-class" id="toc-interpret-coefficients-what-to-say-in-class"><span class="toc-section-number">3.3.3</span> Interpret coefficients (what to
-say in class)</a></li>
+<li><a href="#interpret-coefficients" id="toc-interpret-coefficients"><span class="toc-section-number">3.3.3</span> Interpret coefficients</a></li>
 <li><a href="#get-a-clean-coefficient-table" id="toc-get-a-clean-coefficient-table"><span class="toc-section-number">3.3.4</span> Get a clean coefficient
 table</a></li>
 </ul></li>
@@ -1738,27 +1746,35 @@ extension)</a></li>
 <li><a href="#centering-predictors-helps-interpretation-sometimes-helps-collinearity" id="toc-centering-predictors-helps-interpretation-sometimes-helps-collinearity"><span class="toc-section-number">6.2</span> Centering predictors (helps
 interpretation; sometimes helps collinearity)</a></li>
 </ul></li>
-<li><a href="#reporting-regression-results-templates" id="toc-reporting-regression-results-templates"><span class="toc-section-number">7</span> Reporting regression results
+<li><a href="#logistic-regression-categorical-outcomes" id="toc-logistic-regression-categorical-outcomes"><span class="toc-section-number">7</span> Logistic Regression (Categorical
+Outcomes)</a>
+<ul>
+<li><a href="#when-linear-regression-is-not-appropriate" id="toc-when-linear-regression-is-not-appropriate"><span class="toc-section-number">7.1</span> When linear regression is not
+appropriate</a></li>
+<li><a href="#relationship-to-the-chi-square-test" id="toc-relationship-to-the-chi-square-test"><span class="toc-section-number">7.2</span> Relationship to the chi-square
+test</a></li>
+</ul></li>
+<li><a href="#reporting-regression-results-templates" id="toc-reporting-regression-results-templates"><span class="toc-section-number">8</span> Reporting regression results
 (templates)</a>
 <ul>
-<li><a href="#simple-regression-report-template" id="toc-simple-regression-report-template"><span class="toc-section-number">7.1</span> Simple regression report
+<li><a href="#simple-regression-report-template" id="toc-simple-regression-report-template"><span class="toc-section-number">8.1</span> Simple regression report
 template</a></li>
-<li><a href="#multiple-regression-report-template" id="toc-multiple-regression-report-template"><span class="toc-section-number">7.2</span> Multiple regression report
+<li><a href="#multiple-regression-report-template" id="toc-multiple-regression-report-template"><span class="toc-section-number">8.2</span> Multiple regression report
 template</a></li>
 </ul></li>
-<li><a href="#short-exercises" id="toc-short-exercises"><span class="toc-section-number">8</span> Short exercises</a>
+<li><a href="#short-exercises" id="toc-short-exercises"><span class="toc-section-number">9</span> Short exercises</a>
 <ul>
-<li><a href="#exercise-1-correlation-quick" id="toc-exercise-1-correlation-quick"><span class="toc-section-number">8.1</span> Exercise 1: Correlation
+<li><a href="#exercise-1-correlation-quick" id="toc-exercise-1-correlation-quick"><span class="toc-section-number">9.1</span> Exercise 1: Correlation
 (quick)</a></li>
-<li><a href="#exercise-2-build-and-diagnose-your-own-regression" id="toc-exercise-2-build-and-diagnose-your-own-regression"><span class="toc-section-number">8.2</span> Exercise 2: Build and diagnose
+<li><a href="#exercise-2-build-and-diagnose-your-own-regression" id="toc-exercise-2-build-and-diagnose-your-own-regression"><span class="toc-section-number">9.2</span> Exercise 2: Build and diagnose
 your own regression</a></li>
 </ul></li>
-<li><a href="#appendix-cheatsheet-what-you-should-remember" id="toc-appendix-cheatsheet-what-you-should-remember"><span class="toc-section-number">9</span> Appendix — Cheatsheet (what you
+<li><a href="#appendix-cheatsheet-what-you-should-remember" id="toc-appendix-cheatsheet-what-you-should-remember"><span class="toc-section-number">10</span> Appendix — Cheatsheet (what you
 should remember)</a>
 <ul>
-<li><a href="#correlation" id="toc-correlation"><span class="toc-section-number">9.1</span> Correlation</a></li>
-<li><a href="#regression-basics" id="toc-regression-basics"><span class="toc-section-number">9.2</span> Regression basics</a></li>
-<li><a href="#diagnostics" id="toc-diagnostics"><span class="toc-section-number">9.3</span> Diagnostics</a></li>
+<li><a href="#correlation" id="toc-correlation"><span class="toc-section-number">10.1</span> Correlation</a></li>
+<li><a href="#regression-basics" id="toc-regression-basics"><span class="toc-section-number">10.2</span> Regression basics</a></li>
+<li><a href="#diagnostics" id="toc-diagnostics"><span class="toc-section-number">10.3</span> Diagnostics</a></li>
 </ul></li>
 </ul>
 </div>
@@ -1791,9 +1807,9 @@ should remember)</a>
 language.</p></li>
 </ol>
 </div>
-<div id="correlation-brief-but-complete" class="section level1" number="2">
-<h1><span class="header-section-number">2</span> Correlation (brief but
-complete)</h1>
+<div id="correlation-briefly" class="section level1" number="2">
+<h1><span class="header-section-number">2</span> Correlation
+(briefly)</h1>
 <div id="why-start-with-a-plot" class="section level2" number="2.1">
 <h2><span class="header-section-number">2.1</span> Why start with a
 plot?</h2>
@@ -1913,7 +1929,67 @@ outliers.</p></li>
 <li><p><strong>Kendall</strong>: similar goals as Spearman; can be
 preferable with small samples and many ties.</p></li>
 </ul>
+</div>
+<div id="chi-square-test" class="section level2" number="2.5">
+<h2><span class="header-section-number">2.5</span> Chi-square Test</h2>
+<div id="what-question-does-the-chi-square-test-answer" class="section level3" number="2.5.1">
+<h3><span class="header-section-number">2.5.1</span> What question does
+the chi-square test answer?</h3>
+<p>The chi-square test of independence examines whether two categorical
+variables are statistically associated.</p>
+<p>Conceptually, this is the categorical analogue of correlation: -
+Correlation → association between continuous variables - Chi-square →
+association between categorical variables</p>
+<pre class="r"><code>dat &lt;- as.data.frame(Titanic)
+
+# Class × Survival
+tbl &lt;- xtabs(Freq ~ Class + Survived, data = dat)
+tbl</code></pre>
+<pre><code>##       Survived
+## Class   No Yes
+##   1st  122 203
+##   2nd  167 118
+##   3rd  528 178
+##   Crew 673 212</code></pre>
+<pre class="r"><code>chisq.test(tbl)</code></pre>
+<pre><code>## 
+##  Pearson&#39;s Chi-squared test
+## 
+## data:  tbl
+## X-squared = 190.4, df = 3, p-value &lt; 2.2e-16</code></pre>
+<pre class="r"><code>chisq.test(tbl)$expected</code></pre>
+<pre><code>##       Survived
+## Class        No       Yes
+##   1st  220.0136 104.98637
+##   2nd  192.9350  92.06497
+##   3rd  477.9373 228.06270
+##   Crew 599.1140 285.88596</code></pre>
+</div>
+<div id="assumptions-of-the-chi-square-test" class="section level3" number="2.5.2">
+<h3><span class="header-section-number">2.5.2</span> Assumptions of the
+chi-square test</h3>
+<ul>
+<li>Observations are independent</li>
+<li>Expected cell counts should generally be ≥ 5</li>
+</ul>
+<p>When expected counts are small, the chi-square approximation may be
+inaccurate.</p>
+</div>
+<div id="fishers-exact-test-small-samples" class="section level3" number="2.5.3">
+<h3><span class="header-section-number">2.5.3</span> Fisher’s Exact Test
+(small samples)</h3>
+<p>When expected cell counts are small, Fisher’s Exact Test is
+preferred.</p>
+<pre class="r"><code>fisher.test(tbl, simulate.p.value = TRUE, B = 20000)</code></pre>
+<pre><code>## 
+##  Fisher&#39;s Exact Test for Count Data with simulated p-value (based on
+##  20000 replicates)
+## 
+## data:  tbl
+## p-value = 5e-05
+## alternative hypothesis: two.sided</code></pre>
 <hr />
+</div>
 </div>
 </div>
 <div id="linear-regression-walkthrough" class="section level1" number="3">
@@ -2017,9 +2093,9 @@ summary(m1)</code></pre>
 ## Multiple R-squared:  0.7528, Adjusted R-squared:  0.7446 
 ## F-statistic: 91.38 on 1 and 30 DF,  p-value: 1.294e-10</code></pre>
 </div>
-<div id="interpret-coefficients-what-to-say-in-class" class="section level3" number="3.3.3">
+<div id="interpret-coefficients" class="section level3" number="3.3.3">
 <h3><span class="header-section-number">3.3.3</span> Interpret
-coefficients (what to say in class)</h3>
+coefficients</h3>
 <ul>
 <li><p><strong>Intercept (</strong><span class="math inline">\(b_0\)</span><strong>):</strong> predicted mpg when
 <span class="math inline">\(wt\)</span> = 0 (often not meaningful if
@@ -2456,16 +2532,41 @@ summary(m2c)</code></pre>
 <hr />
 </div>
 </div>
-<div id="reporting-regression-results-templates" class="section level1" number="7">
-<h1><span class="header-section-number">7</span> Reporting regression
+<div id="logistic-regression-categorical-outcomes" class="section level1" number="7">
+<h1><span class="header-section-number">7</span> Logistic Regression
+(Categorical Outcomes)</h1>
+<div id="when-linear-regression-is-not-appropriate" class="section level2" number="7.1">
+<h2><span class="header-section-number">7.1</span> When linear
+regression is not appropriate</h2>
+<p>Linear regression assumes a continuous outcome variable. When the
+outcome is binary or categorical (e.g., yes/no, pass/fail), linear
+regression is not suitable.</p>
+<p>Logistic regression models the probability of an outcome instead.</p>
+</div>
+<div id="relationship-to-the-chi-square-test" class="section level2" number="7.2">
+<h2><span class="header-section-number">7.2</span> Relationship to the
+chi-square test</h2>
+<ul>
+<li>Chi-square asks: Is there an association?</li>
+<li>Logistic regression asks: How does each predictor change the
+probability?</li>
+</ul>
+<p>Logistic regression can be seen as a model-based extension of the
+chi-square test that allows multiple predictors and effect size
+estimation.</p>
+<hr />
+</div>
+</div>
+<div id="reporting-regression-results-templates" class="section level1" number="8">
+<h1><span class="header-section-number">8</span> Reporting regression
 results (templates)</h1>
-<div id="simple-regression-report-template" class="section level2" number="7.1">
-<h2><span class="header-section-number">7.1</span> Simple regression
+<div id="simple-regression-report-template" class="section level2" number="8.1">
+<h2><span class="header-section-number">8.1</span> Simple regression
 report template</h2>
 <p>“Weight significantly predicted fuel efficiency, <span class="math inline">\(b=..., t(df)=..., p=..., R^2=...\)</span>”</p>
 </div>
-<div id="multiple-regression-report-template" class="section level2" number="7.2">
-<h2><span class="header-section-number">7.2</span> Multiple regression
+<div id="multiple-regression-report-template" class="section level2" number="8.2">
+<h2><span class="header-section-number">8.2</span> Multiple regression
 report template</h2>
 <p>“A multiple linear regression was fit to predict mpg from weight and
 horsepower.<br />
@@ -2493,10 +2594,10 @@ coefs</code></pre>
 <hr />
 </div>
 </div>
-<div id="short-exercises" class="section level1" number="8">
-<h1><span class="header-section-number">8</span> Short exercises</h1>
-<div id="exercise-1-correlation-quick" class="section level2" number="8.1">
-<h2><span class="header-section-number">8.1</span> Exercise 1:
+<div id="short-exercises" class="section level1" number="9">
+<h1><span class="header-section-number">9</span> Short exercises</h1>
+<div id="exercise-1-correlation-quick" class="section level2" number="9.1">
+<h2><span class="header-section-number">9.1</span> Exercise 1:
 Correlation (quick)</h2>
 <ol style="list-style-type: decimal">
 <li><p>Use <code>cor.test()</code> to compute Pearson and Spearman
@@ -2526,8 +2627,8 @@ correlation between <code>wt</code> and <code>mpg</code>.</p></li>
 ##       rho 
 ## -0.886422</code></pre>
 </div>
-<div id="exercise-2-build-and-diagnose-your-own-regression" class="section level2" number="8.2">
-<h2><span class="header-section-number">8.2</span> Exercise 2: Build and
+<div id="exercise-2-build-and-diagnose-your-own-regression" class="section level2" number="9.2">
+<h2><span class="header-section-number">9.2</span> Exercise 2: Build and
 diagnose your own regression</h2>
 <ol style="list-style-type: decimal">
 <li><p>Fit <code>mpg ~ wt</code></p></li>
@@ -2557,18 +2658,18 @@ plot(m2_ex)</code></pre>
 <hr />
 </div>
 </div>
-<div id="appendix-cheatsheet-what-you-should-remember" class="section level1" number="9">
-<h1><span class="header-section-number">9</span> Appendix — Cheatsheet
+<div id="appendix-cheatsheet-what-you-should-remember" class="section level1" number="10">
+<h1><span class="header-section-number">10</span> Appendix — Cheatsheet
 (what you should remember)</h1>
-<div id="correlation" class="section level2" number="9.1">
-<h2><span class="header-section-number">9.1</span> Correlation</h2>
+<div id="correlation" class="section level2" number="10.1">
+<h2><span class="header-section-number">10.1</span> Correlation</h2>
 <ul>
 <li><p><code>cor(x, y, method=&quot;pearson&quot;|&quot;spearman&quot;|&quot;kendall&quot;)</code></p></li>
 <li><p><code>cor.test(x, y, ...)</code> for inference + CI</p></li>
 </ul>
 </div>
-<div id="regression-basics" class="section level2" number="9.2">
-<h2><span class="header-section-number">9.2</span> Regression
+<div id="regression-basics" class="section level2" number="10.2">
+<h2><span class="header-section-number">10.2</span> Regression
 basics</h2>
 <ul>
 <li><p><code>lm(y ~ x, data=df)</code></p></li>
@@ -2577,8 +2678,8 @@ basics</h2>
 tables</p></li>
 </ul>
 </div>
-<div id="diagnostics" class="section level2" number="9.3">
-<h2><span class="header-section-number">9.3</span> Diagnostics</h2>
+<div id="diagnostics" class="section level2" number="10.3">
+<h2><span class="header-section-number">10.3</span> Diagnostics</h2>
 <ul>
 <li><p><code>plot(model)</code> (4 key diagnostic plots)</p></li>
 <li><p><code>cooks.distance(model)</code> for influence</p></li>

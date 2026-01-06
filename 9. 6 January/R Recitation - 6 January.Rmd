@@ -3,15 +3,15 @@ title: "R Recitation - 6 January: Correlation (Parametric & Non-Parametric) + Li
 author: "Burcu"
 date: "`r format(Sys.Date(), '%d %B %Y')`"
 output:
+  pdf_document:
+    latex_engine: xelatex
+    toc: true
+    toc_depth: '3'
   html_document:
     toc: true
     toc_depth: 3
     number_sections: true
     df_print: paged
-  pdf_document:
-    toc: true
-    toc_depth: 3
-    number_sections: true
 fontsize: 11pt
 geometry: margin=1in
 editor_options:
@@ -73,7 +73,7 @@ By the end of this recitation, you should be able to:
 
 4.  Report results clearly using standard statistics language.
 
-# Correlation (brief but complete)
+# Correlation (briefly)
 
 ## Why start with a plot?
 
@@ -166,7 +166,45 @@ cor.test(df_corr$x, df_corr$y, method = "kendall", exact = FALSE)
 -   **Kendall**: similar goals as Spearman; can be preferable with small
     samples and many ties.
 
---------------------------
+## Chi-square Test
+
+### What question does the chi-square test answer?
+
+The chi-square test of independence examines whether two categorical
+variables are statistically associated.
+
+Conceptually, this is the categorical analogue of correlation: -
+Correlation → association between continuous variables - Chi-square →
+association between categorical variables
+
+```{r}
+dat <- as.data.frame(Titanic)
+
+# Class × Survival
+tbl <- xtabs(Freq ~ Class + Survived, data = dat)
+tbl
+
+chisq.test(tbl)
+chisq.test(tbl)$expected
+```
+
+### Assumptions of the chi-square test
+
+-   Observations are independent
+-   Expected cell counts should generally be ≥ 5
+
+When expected counts are small, the chi-square approximation may be
+inaccurate.
+
+### Fisher’s Exact Test (small samples)
+
+When expected cell counts are small, Fisher’s Exact Test is preferred.
+
+```{r}
+fisher.test(tbl, simulate.p.value = TRUE, B = 20000)
+```
+
+------------------------------------------------------------------------
 
 # Linear regression (walkthrough)
 
@@ -235,7 +273,7 @@ m1 <- lm(mpg ~ wt, data = df)
 summary(m1)
 ```
 
-### Interpret coefficients (what to say in class)
+### Interpret coefficients
 
 -   **Intercept (**$b_0$**):** predicted mpg when $wt$ = 0 (often not
     meaningful if $wt$=0 is outside the data range; but it is part of
@@ -287,14 +325,13 @@ labs(title = "Observed mpg vs Fitted mpg",
 subtitle = "Closer to the diagonal indicates better fit")
 ```
 
------------------------
+------------------------------------------------------------------------
 
 # Multiple regression (step-by-step model building)
 
 Now we add horsepower:
 
-$mpg_i=b_0+b_1⋅wt_i+b_2⋅hp_i+ϵ_i$
-​
+$mpg_i=b_0+b_1⋅wt_i+b_2⋅hp_i+ϵ_i$ ​
 
 ```{r}
 m2 <- lm(mpg ~ wt + hp, data = df)
@@ -336,7 +373,7 @@ Lower AIC is better (penalizes complexity):
 AIC(m1, m2)
 ```
 
--------------------------
+------------------------------------------------------------------------
 
 # Regression assumptions: how to check them in R
 
@@ -544,7 +581,7 @@ Interpretation:
 -   There is no single universal cutoff, but very high VIF suggests
     interpretation problems and unstable estimates.
 
------------------------
+------------------------------------------------------------------------
 
 # Model refinement examples (guided options)
 
@@ -587,6 +624,28 @@ tidy(m2c, conf.int = TRUE)
 
 -------------------
 
+# Logistic Regression (Categorical Outcomes)
+
+## When linear regression is not appropriate
+
+Linear regression assumes a continuous outcome variable. When the
+outcome is binary or categorical (e.g., yes/no, pass/fail), linear
+regression is not suitable.
+
+Logistic regression models the probability of an outcome instead.
+
+## Relationship to the chi-square test
+
+-   Chi-square asks: Is there an association?
+-   Logistic regression asks: How does each predictor change the
+    probability?
+
+Logistic regression can be seen as a model-based extension of the
+chi-square test that allows multiple predictors and effect size
+estimation.
+
+------------------------------------------------------------------------
+
 # Reporting regression results (templates)
 
 ## Simple regression report template
@@ -613,7 +672,7 @@ coefs
 fit %>% select(r.squared, adj.r.squared, sigma, statistic, p.value, df.residual)
 ```
 
---------------------
+------------------------------------------------------------------------
 
 # Short exercises
 
@@ -656,7 +715,7 @@ plot(m2_ex)
 par(mfrow = c(1, 1))
 ```
 
----------------------
+------------------------------------------------------------------------
 
 # Appendix — Cheatsheet (what you should remember)
 
